@@ -5,8 +5,8 @@
   "version": "2.3.9",
   "identifier": "app.worldmonitor.desktop",
   "build": {
-  "beforeDevCommand": "cd ..&& npm run dev",
-  "beforeBuildCommand": "cd ..&& npm run build",
+  "beforeDevCommand": "cd ..&& VITE_DESKTOP_RUNTIME=1 npm run dev",
+  "beforeBuildCommand": "cd ..&& VITE_DESKTOP_RUNTIME=1 npm run build",
   "frontendDist": "../dist",
   "devUrl": "http://localhost:3000"
 },

@@ -1,7 +1,7 @@
 import type { PredictionMarket } from '@/types';
 import { createCircuitBreaker } from '@/utils';
 import { SITE_VARIANT } from '@/config';
-import { isDesktopRuntime } from '@/services/runtime';
+import { getRemoteApiBaseUrl, isDesktopRuntime } from '@/services/runtime';
 import { tryInvokeTauri } from '@/services/tauri-bridge';
 
 interface PolymarketMarket {
@@ -26,6 +26,22 @@ interface PolymarketEvent {
 }
 
 const GAMMA_API = 'https://gamma-api.polymarket.com';
+const isDevBrowser = import.meta.env.DEV && !isDesktopRuntime();
+
+function getPolymarketProxyBase(): string {
+  if (isDesktopRuntime()) {
+    return getRemoteApiBaseUrl();
+  }
+
+  if (typeof window !== 'undefined') {
+    const { hostname, origin } = window.location;
+    if (hostname !== 'localhost' && hostname !== '127.0.0.1') {
+      return origin;
+    }
+  }
+
+  return getRemoteApiBaseUrl();
+}
 
 // Railway relay URL for Polymarket proxy (Cloudflare JA3 blocks Vercel)
 const wsRelayUrl = import.meta.env.VITE_WS_RELAY_URL || '';
@@ -114,6 +130,7 @@ async function polyFetch(endpoint: 'events' | 'markets', params: Record<string, 
     proxyParams[k === 'tag_slug' ? 'tag' : k] = v;
   }
   const proxyQs = new URLSearchParams(proxyParams).toString();
+  const hostedProxyUrl = `${getPolymarketProxyBase()}/api/polymarket?${proxyQs}`;
 
   // Try Railway relay (different IP/TLS fingerprint than Vercel)
   if (RAILWAY_POLY_URL) {
@@ -126,6 +143,15 @@ async function polyFetch(endpoint: 'events' | 'markets', params: Record<string, 
     } catch { /* Railway unavailable */ }
   }
 
+  // In local browser dev, skip Vite's Node proxy first. Some networks time out
+  // on Node -> worldmonitor.app even when the browser can reach production directly.
+  if (isDesktopRuntime() || isDevBrowser) {
+    try {
+      const resp = await fetch(hostedProxyUrl);
+      if (resp.ok) return resp;
+    } catch { /* direct production proxy failed */ }
+  }
+
   // Try Vercel edge function
   try {
     const resp = await fetch(`/api/polymarket?${proxyQs}`);
@@ -136,7 +162,7 @@ async function polyFetch(endpoint: 'events' | 'markets', params: Record<string, 
   } catch { /* local proxy failed */ }
 
   // Final fallback: hit production endpoint directly
-  return fetch(`https://worldmonitor.app/api/polymarket?${proxyQs}`);
+  return fetch(hostedProxyUrl);
 }
 
 const GEOPOLITICAL_TAGS = [

@@ -167,6 +167,14 @@ const ALLOWED_DOMAINS = [
   'seekingalpha.com',
   'www.coindesk.com',
   'cointelegraph.com',
+  // Cuba
+  'www.cubadebate.cu',
+  "www.granma.cu",
+  "www.juventudrebelde.cu",
+  "www.trabajadores.cu",
+  "www.tribuna.cu",
+  "www.prensa-latina.cu",
+  // Cuba alterno
 ];
 
 export default async function handler(req) {

@@ -51,7 +51,7 @@ export default async function handler(req) {
 
   try {
     const response = await fetch(
-      `https://api.gdeltproject.org/api/v2/geo/geo?query=${encodeURIComponent(query)}&format=${format}&maxrecords=${maxrecords}&timespan=${timespan}`
+      `https://api.gdeltproject.org/api/v2/geo/geo?query=${encodeURIComponent(query)}&format=${format}&maxrecords=${'25'}&timespan=${'2d'}`
     );
 
     if (!response.ok) {

@@ -316,11 +316,18 @@ export default defineConfig({
       ],
     },
     proxy: {
+      
       // Yahoo Finance API
-      '/api/yahoo': {
-        target: 'https://query1.finance.yahoo.com',
+      '/api/yahoo-finance': {
+        target: 'https://worldmonitor.app',
         changeOrigin: true,
-        rewrite: (path) => path.replace(/^\/api\/yahoo/, ''),
+        timeout: 30000,
+        rewrite: (path) => path,
+        configure: (proxy) => {
+          proxy.on('error', (err) => {
+            console.log('Yahoo Finance proxy error:', err.message);
+          });
+        },
       },
       // CoinGecko API
       '/api/coingecko': {

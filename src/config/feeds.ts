@@ -214,6 +214,13 @@ export const SOURCE_TIERS: Record<string, number> = {
   'ArXiv AI': 4,
   'AI News': 4,
   'Layoffs News': 4,
+  // Cuba
+  'Cubadebate': 2,
+  'Granma': 2,
+  'JuventudRevelde': 2,
+  'Trabajadores': 2,
+  'Tribuna': 2,
+  'PrensaLatina': 2,
 };
 
 export function getSourceTier(sourceName: string): number {
@@ -289,6 +296,13 @@ export const SOURCE_TYPES: Record<string, SourceType> = {
   'This Week in Startups': 'tech', 'The Twenty Minute VC': 'tech',
   'Hard Fork (NYT)': 'tech', 'Pivot (Vox)': 'tech', 'Stratechery': 'tech',
   'Benedict Evans': 'tech', 'How I Built This': 'tech', 'Masters of Scale': 'tech',
+  //Cuba
+  'Cubadebate': 'mainstream',
+  'Granma': 'mainstream',
+  'JuventudRevelde': 'other',
+  'Trabajadores': 'other',
+  'Tribuna': 'other',
+  'PrensaLatina': 'mainstream',
 };
 
 export function getSourceType(sourceName: string): SourceType {
@@ -337,6 +351,14 @@ export const SOURCE_PROPAGANDA_RISK: Record<string, SourceRiskProfile> = {
   'Guardian World': { risk: 'low', knownBiases: ['Center-left'], note: 'Scott Trust ownership, no shareholders' },
   'Financial Times': { risk: 'low', note: 'Business focus, Nikkei-owned' },
   'Bellingcat': { risk: 'low', note: 'Open-source investigations, methodology transparent' },
+
+  //Cuba
+  'Cubadebate': { risk: 'high', stateAffiliated: 'Cuba', note: 'Government-aligned digital outlet' },
+  'Granma': { risk: 'high', stateAffiliated: 'Cuba', note: 'Official newspaper of the PCC' },
+  'JuventudRevelde': { risk: 'high', stateAffiliated: 'Cuba', note: 'Official newspaper of the UJC' },
+  'Trabajadores': { risk: 'high', stateAffiliated: 'Cuba', note: 'Wire service, strict editorial standards' },
+  'Tribuna': { risk: 'high', stateAffiliated: 'Cuba', note: 'Wire service, strict editorial standards' },
+  'PrensaLatina': { risk: 'high', stateAffiliated: 'Cuba', note: 'Wire service, strict editorial standards' },
 };
 
 export function getSourcePropagandaRisk(sourceName: string): SourceRiskProfile {
@@ -472,6 +494,14 @@ const FULL_FEEDS: Record<string, Feed[]> = {
     { name: 'Reuters Energy', url: rss('https://news.google.com/rss/search?q=site:reuters.com+(oil+OR+gas+OR+energy+OR+OPEC)+when:3d&hl=en-US&gl=US&ceid=US:en') },
     { name: 'Mining & Resources', url: rss('https://news.google.com/rss/search?q=(lithium+OR+"rare+earth"+OR+cobalt+OR+mining)+when:3d&hl=en-US&gl=US&ceid=US:en') },
   ],
+  cuba: [
+    { name: 'Cubadebate', url: rss('https://www.cubadebate.cu/rss') },
+    { name: 'Granma', url: rss('https://www.granma.cu/feed') },
+    { name: 'JuventudRevelde', url: rss('https://www.juventudrebelde.cu/get/rss/grupo/generales') },
+    { name: 'Trabajadores', url: rss('https://www.juventudrebelde.cu/get/rss/grupo/generales') },
+    { name: 'Tribuna', url: rss('https://www.trabajadores.cu/feed') },
+    { name: 'PrensaLatina', url: rss('https://www.prensalatina.cu/feed') },
+  ]
 };
 
 // Tech/AI variant feeds
