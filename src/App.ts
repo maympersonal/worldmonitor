@@ -264,6 +264,26 @@ export class App {
       }
     }
 
+    const forcedDisabledPanels = [
+      'markets',
+      'commodities',
+      'polymarket',
+      'economic',
+      'crypto',
+      'heatmap',
+      'layoffs',
+      'satellite-fires',
+      'macro-signals',
+      'etf-flows',
+      'stablecoins',
+      'population-exposure',
+    ];
+    for (const key of forcedDisabledPanels) {
+      const panel = this.panelSettings[key];
+      if (panel) panel.enabled = false;
+    }
+    saveToStorage(STORAGE_KEYS.panels, this.panelSettings);
+
     // Desktop key management panel must always remain accessible in Tauri.
     if (this.isDesktopApp) {
       const runtimePanel = this.panelSettings['runtime-config'] ?? {
@@ -326,7 +346,7 @@ export class App {
     this.setupMobileWarning();
     this.setupPlaybackControl();
     this.setupStatusPanel();
-    this.setupPizzIntIndicator();
+    //this.setupPizzIntIndicator();
     this.setupExportPanel();
     this.setupSearchModal();
     this.setupMapLayerHandlers();
@@ -1943,11 +1963,13 @@ export class App {
     this.newsPanels['finance'] = financePanel;
     this.panels['finance'] = financePanel;
 
-    const heatmapPanel = new HeatmapPanel();
-    this.panels['heatmap'] = heatmapPanel;
+    // Panel desactivado temporalmente:
+    // const heatmapPanel = new HeatmapPanel();
+    // this.panels['heatmap'] = heatmapPanel;
 
-    const marketsPanel = new MarketPanel();
-    this.panels['markets'] = marketsPanel;
+    // Mercado desactivado temporalmente:
+    // const marketsPanel = new MarketPanel();
+    // this.panels['markets'] = marketsPanel;
 
     const monitorPanel = new MonitorPanel(this.monitors);
     this.panels['monitors'] = monitorPanel;
@@ -1957,11 +1979,13 @@ export class App {
       this.updateMonitorResults();
     });
 
-    const commoditiesPanel = new CommoditiesPanel();
-    this.panels['commodities'] = commoditiesPanel;
+    // Mercado desactivado temporalmente:
+    // const commoditiesPanel = new CommoditiesPanel();
+    // this.panels['commodities'] = commoditiesPanel;
 
-    const predictionPanel = new PredictionPanel();
-    this.panels['polymarket'] = predictionPanel;
+    // Mercado desactivado temporalmente:
+    // const predictionPanel = new PredictionPanel();
+    // this.panels['polymarket'] = predictionPanel;
 
     const govPanel = new NewsPanel('gov', t('panels.gov'));
     this.attachRelatedAssetHandlers(govPanel);
@@ -1973,18 +1997,20 @@ export class App {
     this.newsPanels['intel'] = intelPanel;
     this.panels['intel'] = intelPanel;
 
-    const cryptoPanel = new CryptoPanel();
-    this.panels['crypto'] = cryptoPanel;
+    // Panel desactivado temporalmente:
+    // const cryptoPanel = new CryptoPanel();
+    // this.panels['crypto'] = cryptoPanel;
 
     const middleeastPanel = new NewsPanel('middleeast', t('panels.middleeast'));
     this.attachRelatedAssetHandlers(middleeastPanel);
     this.newsPanels['middleeast'] = middleeastPanel;
     this.panels['middleeast'] = middleeastPanel;
 
-    const layoffsPanel = new NewsPanel('layoffs', t('panels.layoffs'));
-    this.attachRelatedAssetHandlers(layoffsPanel);
-    this.newsPanels['layoffs'] = layoffsPanel;
-    this.panels['layoffs'] = layoffsPanel;
+    // Panel desactivado temporalmente:
+    // const layoffsPanel = new NewsPanel('layoffs', t('panels.layoffs'));
+    // this.attachRelatedAssetHandlers(layoffsPanel);
+    // this.newsPanels['layoffs'] = layoffsPanel;
+    // this.panels['layoffs'] = layoffsPanel;
 
     const aiPanel = new NewsPanel('ai', t('panels.ai'));
     this.attachRelatedAssetHandlers(aiPanel);
@@ -2067,8 +2093,9 @@ export class App {
     this.newsPanels['thinktanks'] = thinktanksPanel;
     this.panels['thinktanks'] = thinktanksPanel;
 
-    const economicPanel = new EconomicPanel();
-    this.panels['economic'] = economicPanel;
+    // Panel desactivado temporalmente:
+    // const economicPanel = new EconomicPanel();
+    // this.panels['economic'] = economicPanel;
 
     // New Regional Panels
     const africaPanel = new NewsPanel('africa', t('panels.africa'));
@@ -2121,8 +2148,9 @@ export class App {
       const cascadePanel = new CascadePanel();
       this.panels['cascade'] = cascadePanel;
 
-      const satelliteFiresPanel = new SatelliteFiresPanel();
-      this.panels['satellite-fires'] = satelliteFiresPanel;
+      // Panel desactivado temporalmente:
+      // const satelliteFiresPanel = new SatelliteFiresPanel();
+      // this.panels['satellite-fires'] = satelliteFiresPanel;
 
       const strategicRiskPanel = new StrategicRiskPanel();
       strategicRiskPanel.setLocationClickHandler((lat, lon) => {
@@ -2155,8 +2183,9 @@ export class App {
       });
       this.panels['climate'] = climatePanel;
 
-      const populationExposurePanel = new PopulationExposurePanel();
-      this.panels['population-exposure'] = populationExposurePanel;
+      // Panel desactivado temporalmente:
+      // const populationExposurePanel = new PopulationExposurePanel();
+      // this.panels['population-exposure'] = populationExposurePanel;
     }
 
     // GCC Investments Panel (finance variant)
@@ -2187,9 +2216,10 @@ export class App {
     this.panels['tech-readiness'] = techReadinessPanel;
 
     // Crypto & Market Intelligence Panels
-    this.panels['macro-signals'] = new MacroSignalsPanel();
-    this.panels['etf-flows'] = new ETFFlowsPanel();
-    this.panels['stablecoins'] = new StablecoinPanel();
+    // Mercado desactivado temporalmente:
+    // this.panels['macro-signals'] = new MacroSignalsPanel();
+    // this.panels['etf-flows'] = new ETFFlowsPanel();
+    // this.panels['stablecoins'] = new StablecoinPanel();
 
     // AI Insights Panel (desktop only - hides itself on mobile)
     const insightsPanel = new InsightsPanel();
@@ -2882,12 +2912,14 @@ export class App {
 
     const tasks: Array<{ name: string; task: Promise<void> }> = [
       { name: 'news', task: runGuarded('news', () => this.loadNews()) },
-      { name: 'markets', task: runGuarded('markets', () => this.loadMarkets()) },
-      { name: 'predictions', task: runGuarded('predictions', () => this.loadPredictions()) },
+      // Mercado desactivado temporalmente:
+      // { name: 'markets', task: runGuarded('markets', () => this.loadMarkets()) },
+      // { name: 'predictions', task: runGuarded('predictions', () => this.loadPredictions()) },
       { name: 'pizzint', task: runGuarded('pizzint', () => this.loadPizzInt()) },
-      { name: 'fred', task: runGuarded('fred', () => this.loadFredData()) },
-      { name: 'oil', task: runGuarded('oil', () => this.loadOilAnalytics()) },
-      { name: 'spending', task: runGuarded('spending', () => this.loadGovernmentSpending()) },
+      // Panel desactivado temporalmente:
+      // { name: 'fred', task: runGuarded('fred', () => this.loadFredData()) },
+      // { name: 'oil', task: runGuarded('oil', () => this.loadOilAnalytics()) },
+      // { name: 'spending', task: runGuarded('spending', () => this.loadGovernmentSpending()) },
     ];
 
     // Load intelligence signals for CII calculation (protests, military, outages)
@@ -2899,7 +2931,8 @@ export class App {
     // Conditionally load non-intelligence layers
     // NOTE: outages, protests, military are handled by loadIntelligenceSignals() above
     // They update the map when layers are enabled, so no duplicate tasks needed here
-    if (SITE_VARIANT === 'full') tasks.push({ name: 'firms', task: runGuarded('firms', () => this.loadFirmsData()) });
+    // Panel desactivado temporalmente:
+    // if (SITE_VARIANT === 'full') tasks.push({ name: 'firms', task: runGuarded('firms', () => this.loadFirmsData()) });
     if (this.mapLayers.natural) tasks.push({ name: 'natural', task: runGuarded('natural', () => this.loadNatural()) });
     if (this.mapLayers.weather) tasks.push({ name: 'weather', task: runGuarded('weather', () => this.loadWeatherAlerts()) });
     if (this.mapLayers.ais) tasks.push({ name: 'ais', task: runGuarded('ais', () => this.loadAisSignals()) });
@@ -3181,6 +3214,10 @@ export class App {
     // Build categories dynamically from whatever feeds the current variant exports
     const categories = Object.entries(FEEDS)
       .filter((entry): entry is [string, typeof FEEDS[keyof typeof FEEDS]] => Array.isArray(entry[1]) && entry[1].length > 0)
+      .filter(([key]) => {
+        const panelKey = this.panels[`${key}-news`] ? `${key}-news` : key;
+        return this.panelSettings[panelKey]?.enabled !== false;
+      })
       .map(([key, feeds]) => ({ key, feeds }));
 
     // Stage category fetches to avoid startup bursts and API pressure in all variants.
@@ -3729,11 +3766,12 @@ export class App {
           id: e.id, lat: e.latitude, lon: e.longitude, type: e.type_of_violence as string, name: `${e.side_a} vs ${e.side_b}`,
         })),
       ];
-      if (events.length > 0) {
-        const exposures = await enrichEventsWithExposure(events);
-        (this.panels['population-exposure'] as PopulationExposurePanel)?.setExposures(exposures);
-        if (exposures.length > 0) dataFreshness.recordUpdate('worldpop', exposures.length);
-      }
+      // Panel desactivado temporalmente:
+      // if (events.length > 0) {
+      //   const exposures = await enrichEventsWithExposure(events);
+      //   (this.panels['population-exposure'] as PopulationExposurePanel)?.setExposures(exposures);
+      //   if (exposures.length > 0) dataFreshness.recordUpdate('worldpop', exposures.length);
+      // }
     } catch (error) {
       console.error('[Intelligence] Population exposure fetch failed:', error);
       dataFreshness.recordError('worldpop', String(error));
@@ -4270,16 +4308,18 @@ export class App {
   private setupRefreshIntervals(): void {
     // Always refresh news, markets, predictions, pizzint
     this.scheduleRefresh('news', () => this.loadNews(), REFRESH_INTERVALS.feeds);
-    this.scheduleRefresh('markets', () => this.loadMarkets(), REFRESH_INTERVALS.markets);
-    this.scheduleRefresh('predictions', () => this.loadPredictions(), REFRESH_INTERVALS.predictions);
+    // Mercado desactivado temporalmente:
+    // this.scheduleRefresh('markets', () => this.loadMarkets(), REFRESH_INTERVALS.markets);
+    // this.scheduleRefresh('predictions', () => this.loadPredictions(), REFRESH_INTERVALS.predictions);
     this.scheduleRefresh('pizzint', () => this.loadPizzInt(), 10 * 60 * 1000);
 
     // Only refresh layer data if layer is enabled
     this.scheduleRefresh('natural', () => this.loadNatural(), 5 * 60 * 1000, () => this.mapLayers.natural);
     this.scheduleRefresh('weather', () => this.loadWeatherAlerts(), 10 * 60 * 1000, () => this.mapLayers.weather);
-    this.scheduleRefresh('fred', () => this.loadFredData(), 30 * 60 * 1000);
-    this.scheduleRefresh('oil', () => this.loadOilAnalytics(), 30 * 60 * 1000);
-    this.scheduleRefresh('spending', () => this.loadGovernmentSpending(), 60 * 60 * 1000);
+    // Panel desactivado temporalmente:
+    // this.scheduleRefresh('fred', () => this.loadFredData(), 30 * 60 * 1000);
+    // this.scheduleRefresh('oil', () => this.loadOilAnalytics(), 30 * 60 * 1000);
+    // this.scheduleRefresh('spending', () => this.loadGovernmentSpending(), 60 * 60 * 1000);
 
     // Refresh intelligence signals for CII (geopolitical variant only)
     // This handles outages, protests, military - updates map when layers enabled
@@ -4292,7 +4332,8 @@ export class App {
 
     // Non-intelligence layer refreshes only
     // NOTE: outages, protests, military are refreshed by intelligence schedule above
-    this.scheduleRefresh('firms', () => this.loadFirmsData(), 30 * 60 * 1000);
+    // Panel desactivado temporalmente:
+    // this.scheduleRefresh('firms', () => this.loadFirmsData(), 30 * 60 * 1000);
     this.scheduleRefresh('ais', () => this.loadAisSignals(), REFRESH_INTERVALS.ais, () => this.mapLayers.ais);
     this.scheduleRefresh('cables', () => this.loadCableActivity(), 30 * 60 * 1000, () => this.mapLayers.cables);
     this.scheduleRefresh('flights', () => this.loadFlightDelays(), 10 * 60 * 1000, () => this.mapLayers.flights);
