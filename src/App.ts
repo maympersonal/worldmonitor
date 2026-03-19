@@ -178,6 +178,7 @@ export class App {
   private pendingDeepLinkCountry: string | null = null;
   private briefRequestToken = 0;
   private readonly isDesktopApp = isDesktopRuntime();
+  private optionalMLInitPromise: Promise<void> | null = null;
 
   constructor(containerId: string) {
     const el = document.getElementById(containerId);
@@ -318,9 +319,6 @@ export class App {
     await initDB();
     await initI18n();
 
-    // Initialize ML worker (desktop only - automatically disabled on mobile)
-    await mlWorker.init();
-
     // Check AIS configuration before init
     if (!isAisConfigured()) {
       this.mapLayers.ais = false;
@@ -380,6 +378,8 @@ export class App {
 
     // Handle deep links for story sharing
     this.handleDeepLinks();
+
+    this.scheduleOptionalMLInit();
 
     if (this.isDesktopApp) {
       setTimeout(() => this.checkForUpdate(), 5000);
@@ -3295,25 +3295,7 @@ export class App {
         ? await clusterNewsHybrid(this.allNews)
         : await analysisWorker.clusterNews(this.allNews);
 
-      // Update AI Insights panel with new clusters (if ML available)
-      if (mlWorker.isAvailable && this.latestClusters.length > 0) {
-        const insightsPanel = this.panels['insights'] as InsightsPanel | undefined;
-        insightsPanel?.updateInsights(this.latestClusters);
-      }
-
-      // Push geo-located news clusters to map
-      const geoLocated = this.latestClusters
-        .filter((c): c is typeof c & { lat: number; lon: number } => c.lat != null && c.lon != null)
-        .map(c => ({
-          lat: c.lat,
-          lon: c.lon,
-          title: c.primaryTitle,
-          threatLevel: c.threat?.level ?? 'info',
-          timestamp: c.lastUpdated,
-        }));
-      if (geoLocated.length > 0) {
-        this.map?.setNewsLocations(geoLocated);
-      }
+      this.publishLatestClusters({ refreshInsights: true, allowBrowserFallback: false });
     } catch (error) {
       console.error('[App] Clustering failed, clusters unchanged:', error);
     }
@@ -4254,6 +4236,73 @@ export class App {
       (this.panels['satellite-fires'] as SatelliteFiresPanel)?.update([], 0);
       this.statusPanel?.updateApi('FIRMS', { status: 'error' });
       dataFreshness.recordError('firms', String(e));
+    }
+  }
+
+  private scheduleOptionalMLInit(): void {
+    if (this.optionalMLInitPromise || this.isDestroyed) return;
+
+    const start = () => {
+      if (this.optionalMLInitPromise || this.isDestroyed) return;
+      this.optionalMLInitPromise = this.initializeOptionalML().catch((error) => {
+        console.warn('[App] Optional ML init failed:', error);
+      });
+    };
+
+    const idleWindow = window as Window & {
+      requestIdleCallback?: (callback: () => void, options?: { timeout: number }) => number;
+    };
+
+    if (typeof idleWindow.requestIdleCallback === 'function') {
+      idleWindow.requestIdleCallback(start, { timeout: 1500 });
+      return;
+    }
+
+    setTimeout(start, 1500);
+  }
+
+  private async initializeOptionalML(): Promise<void> {
+    console.log('[App] Starting deferred ML initialization');
+    const ready = await mlWorker.init();
+    if (!ready || this.isDestroyed || this.allNews.length === 0) {
+      return;
+    }
+
+    console.log('[App] Deferred ML ready, refining clusters');
+    try {
+      this.latestClusters = await clusterNewsHybrid(this.allNews);
+      this.publishLatestClusters({ refreshInsights: true, allowBrowserFallback: true });
+    } catch (error) {
+      console.warn('[App] Deferred ML refinement failed:', error);
+    }
+  }
+
+  private publishLatestClusters(options: {
+    refreshInsights?: boolean;
+    allowBrowserFallback?: boolean;
+  } = {}): void {
+    const {
+      refreshInsights = false,
+      allowBrowserFallback = false,
+    } = options;
+
+    if (refreshInsights && this.latestClusters.length > 0) {
+      const insightsPanel = this.panels['insights'] as InsightsPanel | undefined;
+      void insightsPanel?.updateInsights(this.latestClusters, { allowBrowserFallback });
+    }
+
+    const geoLocated = this.latestClusters
+      .filter((c): c is typeof c & { lat: number; lon: number } => c.lat != null && c.lon != null)
+      .map(c => ({
+        lat: c.lat,
+        lon: c.lon,
+        title: c.primaryTitle,
+        threatLevel: c.threat?.level ?? 'info',
+        timestamp: c.lastUpdated,
+      }));
+
+    if (geoLocated.length > 0) {
+      this.map?.setNewsLocations(geoLocated);
     }
   }
 

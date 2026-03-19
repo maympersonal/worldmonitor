@@ -5,6 +5,7 @@
 
 import { isMobileDevice } from '@/utils';
 import { ML_THRESHOLDS } from '@/config/ml-config';
+import { isDesktopRuntime } from './runtime';
 
 export interface MLCapabilities {
   isSupported: boolean;
@@ -24,6 +25,7 @@ export async function detectMLCapabilities(): Promise<MLCapabilities> {
   if (cachedCapabilities) return cachedCapabilities;
 
   const isDesktop = !isMobileDevice();
+  const disableForWebKitGtkDesktop = isProblematicDesktopMLRuntime();
 
   const hasWebGL = checkWebGLSupport();
   const hasWebGPU = await checkWebGPUSupport();
@@ -31,7 +33,8 @@ export async function detectMLCapabilities(): Promise<MLCapabilities> {
   const hasThreads = checkThreadsSupport();
   const estimatedMemoryMB = estimateAvailableMemory();
 
-  const isSupported = isDesktop &&
+  const isSupported = !disableForWebKitGtkDesktop &&
+    isDesktop &&
     (hasWebGL || hasWebGPU) &&
     estimatedMemoryMB >= 100;
 
@@ -60,8 +63,29 @@ export async function detectMLCapabilities(): Promise<MLCapabilities> {
     recommendedThreads,
   };
 
+  if (disableForWebKitGtkDesktop) {
+    console.warn('[MLCapabilities] Browser ML disabled on Linux desktop runtime to avoid WebKitGTK ONNX/WASM crashes');
+  }
+
   console.log('[MLCapabilities]', cachedCapabilities);
   return cachedCapabilities;
+}
+
+function isProblematicDesktopMLRuntime(): boolean {
+  if (typeof window === 'undefined' || typeof navigator === 'undefined') {
+    return false;
+  }
+
+  if (!isDesktopRuntime()) {
+    return false;
+  }
+
+  const userAgent = navigator.userAgent || '';
+  const platform = navigator.platform || '';
+  const isLinux = /linux/i.test(userAgent) || /linux/i.test(platform);
+  const looksLikeWebKit = /applewebkit/i.test(userAgent);
+
+  return isLinux && looksLikeWebKit;
 }
 
 function checkWebGLSupport(): boolean {

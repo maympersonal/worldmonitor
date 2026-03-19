@@ -2,6 +2,15 @@ import { getCorsHeaders, isDisallowedOrigin } from './_cors.js';
 
 export const config = { runtime: 'edge' };
 
+const RSS_HEADERS = {
+  'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+  'Accept': 'application/rss+xml, application/xml, text/xml, */*',
+  'Accept-Language': 'en-US,en;q=0.9',
+};
+const MAX_REDIRECTS = 5;
+const MAX_RETRIES = 2;
+const RETRYABLE_STATUSES = new Set([429, 500, 502, 503, 504]);
+
 // Fetch with timeout
 async function fetchWithTimeout(url, options, timeoutMs = 15000) {
   const controller = new AbortController();
@@ -176,6 +185,60 @@ const ALLOWED_DOMAINS = [
   "www.prensa-latina.cu",
   // Cuba alterno
 ];
+const ALLOWED_DOMAIN_SET = new Set(ALLOWED_DOMAINS);
+
+function isAllowedHostname(hostname) {
+  return ALLOWED_DOMAIN_SET.has(hostname);
+}
+
+async function fetchFeedResponse(feedUrl, timeoutMs) {
+  let currentUrl = feedUrl;
+
+  for (let redirectCount = 0; redirectCount <= MAX_REDIRECTS; redirectCount += 1) {
+    const response = await fetchWithTimeout(currentUrl, {
+      headers: RSS_HEADERS,
+      redirect: 'manual',
+    }, timeoutMs);
+
+    if (response.status < 300 || response.status >= 400) {
+      return response;
+    }
+
+    const location = response.headers.get('location');
+    if (!location) {
+      return response;
+    }
+
+    const redirectUrl = new URL(location, currentUrl);
+    if (!isAllowedHostname(redirectUrl.hostname)) {
+      throw new Error(`Redirect to disallowed domain: ${redirectUrl.hostname}`);
+    }
+
+    currentUrl = redirectUrl.href;
+  }
+
+  throw new Error('Too many redirects');
+}
+
+async function fetchFeedWithRetry(feedUrl, timeoutMs) {
+  let lastError = null;
+
+  for (let attempt = 1; attempt <= MAX_RETRIES; attempt += 1) {
+    try {
+      const response = await fetchFeedResponse(feedUrl, timeoutMs);
+      if (!RETRYABLE_STATUSES.has(response.status) || attempt === MAX_RETRIES) {
+        return response;
+      }
+    } catch (error) {
+      lastError = error;
+      if (attempt === MAX_RETRIES) {
+        throw error;
+      }
+    }
+  }
+
+  throw lastError instanceof Error ? lastError : new Error('Feed fetch failed');
+}
 
 export default async function handler(req) {
   const corsHeaders = getCorsHeaders(req, 'GET, OPTIONS');
@@ -183,6 +246,13 @@ export default async function handler(req) {
   // Handle CORS preflight
   if (req.method === 'OPTIONS') {
     return new Response(null, { status: 204, headers: corsHeaders });
+  }
+
+  if (isDisallowedOrigin(req)) {
+    return new Response(JSON.stringify({ error: 'Origin not allowed' }), {
+      status: 403,
+      headers: { 'Content-Type': 'application/json', ...corsHeaders },
+    });
   }
 
   const requestUrl = new URL(req.url);
@@ -199,7 +269,7 @@ export default async function handler(req) {
     const parsedUrl = new URL(feedUrl);
 
     // Security: Check if domain is allowed
-    if (!ALLOWED_DOMAINS.includes(parsedUrl.hostname)) {
+    if (!isAllowedHostname(parsedUrl.hostname)) {
       return new Response(JSON.stringify({ error: 'Domain not allowed' }), {
         status: 403,
         headers: { 'Content-Type': 'application/json', ...corsHeaders },
@@ -210,67 +280,40 @@ export default async function handler(req) {
     const isGoogleNews = feedUrl.includes('news.google.com');
     const timeout = isGoogleNews ? 20000 : 12000;
 
-    const response = await fetchWithTimeout(feedUrl, {
-      headers: {
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-        'Accept': 'application/rss+xml, application/xml, text/xml, */*',
-        'Accept-Language': 'en-US,en;q=0.9',
-      },
-      redirect: 'manual',
-    }, timeout);
+    const response = await fetchFeedWithRetry(feedUrl, timeout);
+    const data = await response.text();
 
-    if (response.status >= 300 && response.status < 400) {
-      const location = response.headers.get('location');
-      if (location) {
-        try {
-          const redirectUrl = new URL(location, feedUrl);
-          if (!ALLOWED_DOMAINS.includes(redirectUrl.hostname)) {
-            return new Response(JSON.stringify({ error: 'Redirect to disallowed domain' }), {
-              status: 403,
-              headers: { 'Content-Type': 'application/json', ...corsHeaders },
-            });
-          }
-          const redirectResponse = await fetchWithTimeout(redirectUrl.href, {
-            headers: {
-              'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-              'Accept': 'application/rss+xml, application/xml, text/xml, */*',
-              'Accept-Language': 'en-US,en;q=0.9',
-            },
-          }, timeout);
-          const data = await redirectResponse.text();
-          return new Response(data, {
-            status: redirectResponse.status,
-            headers: {
-              'Content-Type': 'application/xml',
-              'Cache-Control': 'public, max-age=300, s-maxage=300, stale-while-revalidate=60',
-              ...corsHeaders,
-            },
-          });
-        } catch {
-          return new Response(JSON.stringify({ error: 'Invalid redirect' }), {
-            status: 502,
-            headers: { 'Content-Type': 'application/json', ...corsHeaders },
-          });
-        }
-      }
+    if (!response.ok) {
+      const details = data.trim().slice(0, 500);
+      const upstreamStatus = response.status;
+      return new Response(JSON.stringify({
+        error: 'Upstream feed error',
+        details: details || `HTTP ${upstreamStatus}`,
+        status: upstreamStatus,
+        url: feedUrl,
+      }), {
+        status: upstreamStatus,
+        headers: { 'Content-Type': 'application/json', ...corsHeaders },
+      });
     }
 
-    const data = await response.text();
+    const contentType = response.headers.get('content-type') || 'application/xml';
     return new Response(data, {
       status: response.status,
       headers: {
-        'Content-Type': 'application/xml',
+        'Content-Type': contentType,
         'Cache-Control': 'public, max-age=300, s-maxage=300, stale-while-revalidate=60',
         ...corsHeaders,
       },
     });
   } catch (error) {
-    const isTimeout = error.name === 'AbortError';
-    console.error('RSS proxy error:', feedUrl, error.message);
+    const isTimeout = error instanceof Error && error.name === 'AbortError';
+    const message = error instanceof Error ? error.message : 'Unknown error';
+    console.error('RSS proxy error:', feedUrl, message);
     return new Response(JSON.stringify({
       error: isTimeout ? 'Feed timeout' : 'Failed to fetch feed',
-      details: error.message,
-      url: feedUrl
+      details: message,
+      url: feedUrl,
     }), {
       status: isTimeout ? 504 : 502,
       headers: { 'Content-Type': 'application/json', ...corsHeaders },

@@ -528,7 +528,8 @@ async function handleSpike(spike: TrendingSpike, config: TrendingConfig): Promis
       const summary = await generateSummary(
         headlines,
         undefined,
-        `Breaking: "${spike.term}" mentioned ${spike.count}x in ${windowHours}h (${multiplierText})`
+        `Breaking: "${spike.term}" mentioned ${spike.count}x in ${windowHours}h (${multiplierText})`,
+        { allowBrowserFallback: false }
       );
       if (summary?.summary) {
         description = summary.summary;

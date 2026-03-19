@@ -242,8 +242,13 @@ export class InsightsPanel extends Panel {
     `);
   }
 
-  public async updateInsights(clusters: ClusteredEvent[]): Promise<void> {
+  public async updateInsights(
+    clusters: ClusteredEvent[],
+    options: { allowBrowserFallback?: boolean } = {}
+  ): Promise<void> {
     if (this.isHidden) return;
+
+    const allowBrowserFallback = options.allowBrowserFallback ?? true;
 
     if (clusters.length === 0) {
       this.setDataBadge('unavailable');
@@ -348,7 +353,7 @@ export class InsightsPanel extends Panel {
         const result = await generateSummary(titles, (_step, _total, msg) => {
           // Show sub-progress for summarization
           this.setProgress(3, totalSteps, `Generating brief: ${msg}`);
-        }, geoContext);
+        }, geoContext, { allowBrowserFallback });
 
         if (result) {
           worldBrief = result.summary;

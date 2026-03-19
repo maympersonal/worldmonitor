@@ -69,7 +69,9 @@ import { clearChunkReloadGuard, installChunkReloadGuard } from '@/bootstrap/chun
 const chunkReloadStorageKey = installChunkReloadGuard(__APP_VERSION__);
 
 // Initialize Vercel Analytics
-inject();
+if (!('__TAURI_INTERNALS__' in window) && !('__TAURI__' in window)) {
+  inject();
+}
 
 // Initialize dynamic meta tags for sharing
 initMetaTags();

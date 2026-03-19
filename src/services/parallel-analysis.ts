@@ -92,16 +92,10 @@ class ParallelAnalysisService {
     let embeddings: number[][] | null = null;
 
     if (mlWorker.isAvailable) {
-      const [s, e, emb] = await Promise.all([
-        mlWorker.classifySentiment(titles).catch(() => null),
-        mlWorker.extractEntities(titles).catch(() => null),
-        this.getEmbeddings(titles).catch(() => null),
-      ]);
-      sentiments = s;
-      entities = e;
-      embeddings = emb;
+      ({ sentiments, entities, embeddings } = await this.collectMLSignals(titles));
 
       console.log(`%c✓ ML models loaded`, 'color: #4ade80');
+      if (sentiments) console.log(`%c  → Sentiment scored ${sentiments.length} headlines`, 'color: #888');
       if (entities) console.log(`%c  → NER extracted ${entities.flat().length} entities`, 'color: #888');
       if (embeddings) console.log(`%c  → Embeddings computed for ${embeddings.length} headlines`, 'color: #888');
     } else {
@@ -502,6 +496,29 @@ class ParallelAnalysisService {
 
     const denom = Math.sqrt(normA) * Math.sqrt(normB);
     return denom === 0 ? 0 : dot / denom;
+  }
+
+  private async collectMLSignals(titles: string[]): Promise<{
+    sentiments: Array<{ label: string; score: number }> | null;
+    entities: NEREntity[][] | null;
+    embeddings: number[][] | null;
+  }> {
+    // Run heavyweight ML stages one at a time to avoid spiking WebKit's
+    // network/process load during startup and large headline refreshes.
+    const sentiments = await this.runMLStage('sentiment', () => mlWorker.classifySentiment(titles));
+    const entities = await this.runMLStage('entities', () => mlWorker.extractEntities(titles));
+    const embeddings = await this.runMLStage('embeddings', () => this.getEmbeddings(titles));
+
+    return { sentiments, entities, embeddings };
+  }
+
+  private async runMLStage<T>(label: string, task: () => Promise<T>): Promise<T | null> {
+    try {
+      return await task();
+    } catch (error) {
+      console.warn(`[ParallelAnalysis] ${label} stage failed`, error);
+      return null;
+    }
   }
 
   private async getEmbeddings(titles: string[]): Promise<number[][]> {

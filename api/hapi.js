@@ -11,6 +11,7 @@ const CACHE_KEY = 'hapi:conflict-events:v2';
 const CACHE_TTL_SECONDS = 6 * 60 * 60; // 6 hours
 const CACHE_TTL_MS = CACHE_TTL_SECONDS * 1000;
 const RESPONSE_CACHE_CONTROL = 'public, max-age=1800';
+const RETRYABLE_STATUSES = new Set([429, 500, 502, 503, 504]);
 
 // In-memory fallback when Redis is unavailable.
 let fallbackCache = { data: null, timestamp: 0 };
@@ -26,6 +27,34 @@ function isValidResult(data) {
 function toErrorMessage(error) {
   if (error instanceof Error) return error.message;
   return String(error || 'unknown error');
+}
+
+async function fetchWithTimeout(url, options = {}, timeoutMs = 12000) {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    return await fetch(url, { ...options, signal: controller.signal });
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+async function fetchWithRetry(url, options = {}) {
+  let lastError = null;
+
+  for (let attempt = 1; attempt <= 2; attempt += 1) {
+    try {
+      const response = await fetchWithTimeout(url, options);
+      if (!RETRYABLE_STATUSES.has(response.status) || attempt === 2) {
+        return response;
+      }
+    } catch (error) {
+      lastError = error;
+      if (attempt === 2) throw error;
+    }
+  }
+
+  throw lastError instanceof Error ? lastError : new Error('HAPI fetch failed');
 }
 
 export default async function handler(req) {
@@ -61,7 +90,7 @@ export default async function handler(req) {
 
   try {
     const appId = btoa('worldmonitor:monitor@worldmonitor.app');
-    const response = await fetch(
+    const response = await fetchWithRetry(
       `https://hapi.humdata.org/api/v2/coordination-context/conflict-events?output_format=json&limit=1000&offset=0&app_identifier=${appId}`,
       {
         headers: {

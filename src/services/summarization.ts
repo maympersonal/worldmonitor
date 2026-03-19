@@ -18,6 +18,10 @@ export interface SummarizationResult {
 
 export type ProgressCallback = (step: number, total: number, message: string) => void;
 
+export interface GenerateSummaryOptions {
+  allowBrowserFallback?: boolean;
+}
+
 async function tryGroq(headlines: string[], geoContext?: string): Promise<SummarizationResult | null> {
   if (!isFeatureAvailable('aiGroq')) return null;
   try {
@@ -112,13 +116,15 @@ async function tryBrowserT5(headlines: string[]): Promise<SummarizationResult | 
 export async function generateSummary(
   headlines: string[],
   onProgress?: ProgressCallback,
-  geoContext?: string
+  geoContext?: string,
+  options: GenerateSummaryOptions = {}
 ): Promise<SummarizationResult | null> {
   if (!headlines || headlines.length < 2) {
     return null;
   }
 
-  const totalSteps = 3;
+  const allowBrowserFallback = options.allowBrowserFallback ?? true;
+  const totalSteps = allowBrowserFallback ? 3 : 2;
 
   // Step 1: Try Groq (fast, 14.4K/day with 8b-instant + Redis cache)
   onProgress?.(1, totalSteps, 'Connecting to Groq AI...');
@@ -134,6 +140,12 @@ export async function generateSummary(
     return openRouterResult;
   }
 
+  if (!allowBrowserFallback) {
+    console.log('[Summarization] Browser fallback skipped for this request');
+    console.warn('[Summarization] All remote providers failed');
+    return null;
+  }
+
   // Step 3: Try Browser T5 (local, unlimited but slower)
   onProgress?.(3, totalSteps, 'Loading local AI model...');
   const browserResult = await tryBrowserT5(headlines);
@@ -144,4 +156,3 @@ export async function generateSummary(
   console.warn('[Summarization] All providers failed');
   return null;
 }
-

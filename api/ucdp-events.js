@@ -70,7 +70,7 @@ function buildVersionCandidates() {
 
 async function fetchGedPage(version, page) {
   const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), 8000);
+  const timeout = setTimeout(() => controller.abort(), 12000);
   try {
     const response = await fetch(
       `https://ucdpapi.pcr.uu.se/api/gedevents/${version}?pagesize=${UCDP_PAGE_SIZE}&page=${page}`,
@@ -158,7 +158,16 @@ export default async function handler(req) {
 
     for (let offset = 0; offset < MAX_PAGES && (newestPage - offset) >= 0; offset++) {
       const page = newestPage - offset;
-      const rawData = page === 0 ? page0 : await fetchGedPage(version, page);
+      let rawData;
+      try {
+        rawData = page === 0 ? page0 : await fetchGedPage(version, page);
+      } catch (error) {
+        if (allEvents.length > 0) {
+          console.warn(`[UCDP Events] Partial fetch after page ${page}:`, toErrorMessage(error));
+          break;
+        }
+        throw error;
+      }
       const events = Array.isArray(rawData?.Result) ? rawData.Result : [];
       allEvents = allEvents.concat(events);
 
