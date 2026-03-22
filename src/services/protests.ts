@@ -1,6 +1,7 @@
 import type { SocialUnrestEvent, ProtestSeverity, ProtestEventType } from '@/types';
 import { INTEL_HOTSPOTS } from '@/config';
 import { generateId, createCircuitBreaker } from '@/utils';
+import { isFeatureAvailable } from './runtime-config';
 
 // ACLED API - proxied through serverless function (token kept server-side)
 const ACLED_PROXY_URL = '/api/acled';
@@ -9,7 +10,10 @@ const ACLED_PROXY_URL = '/api/acled';
 const GDELT_GEO_URL = '/api/gdelt-geo';
 
 const acledBreaker = createCircuitBreaker<SocialUnrestEvent[]>({ name: 'ACLED Protests' });
-const gdeltBreaker = createCircuitBreaker<SocialUnrestEvent[]>({ name: 'GDELT Events' });
+const gdeltBreaker = createCircuitBreaker<SocialUnrestEvent[]>({
+  name: 'GDELT Events',
+  cooldownMs: 60 * 1000,
+});
 
 // Track if ACLED is configured (determined by first API call)
 let acledConfigured: boolean | null = null;
@@ -73,6 +77,11 @@ interface AcledEvent {
 }
 
 async function fetchAcledEvents(): Promise<SocialUnrestEvent[]> {
+  if (!isFeatureAvailable('acledConflicts')) {
+    acledConfigured = false;
+    return [];
+  }
+
   return acledBreaker.execute(async () => {
     // Use server-side proxy (token not exposed to client)
     const response = await fetch(ACLED_PROXY_URL, {

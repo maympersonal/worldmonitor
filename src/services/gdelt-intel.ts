@@ -80,7 +80,15 @@ export function getIntelTopics(): IntelTopic[] {
 }
 
 const CACHE_TTL = 5 * 60 * 1000;
+const FAILURE_BACKOFF_MS = 30 * 1000;
 const articleCache = new Map<string, { articles: GdeltArticle[]; timestamp: number }>();
+const inFlightRequests = new Map<string, Promise<GdeltArticle[]>>();
+let globalCooldownUntil = 0;
+
+function getRetryAfterSeconds(response: Response): number {
+  const retryAfter = Number(response.headers.get('retry-after'));
+  return Number.isFinite(retryAfter) && retryAfter > 0 ? retryAfter : 5;
+}
 
 function buildGdeltDocUrl(query: string, maxrecords = 10, timespan = '24h'): string {
   return `/api/gdelt-doc?query=${encodeURIComponent(query)}&maxrecords=${maxrecords}&timespan=${timespan}`;
@@ -98,24 +106,47 @@ export async function fetchGdeltArticles(
     return cached.articles;
   }
 
-  try {
-    const url = buildGdeltDocUrl(query, maxrecords, timespan);
-    const response = await fetchWithProxy(url);
+  const inFlight = inFlightRequests.get(cacheKey);
+  if (inFlight) {
+    return inFlight;
+  }
 
-    if (!response.ok) {
-      console.warn(`[GDELT-Intel] Failed to fetch: ${response.status}`);
-      return cached?.articles || [];
-    }
-
-    const data = await response.json();
-    const articles: GdeltArticle[] = data.articles || [];
-
-    articleCache.set(cacheKey, { articles, timestamp: Date.now() });
-    return articles;
-  } catch (error) {
-    console.error('[GDELT-Intel] Fetch error:', error);
+  if (Date.now() < globalCooldownUntil) {
     return cached?.articles || [];
   }
+
+  const request = (async () => {
+    try {
+      const url = buildGdeltDocUrl(query, maxrecords, timespan);
+      const response = await fetchWithProxy(url);
+
+      if (!response.ok) {
+        if (response.status === 429) {
+          const retryAfterSeconds = getRetryAfterSeconds(response);
+          globalCooldownUntil = Date.now() + Math.max(retryAfterSeconds * 1000, FAILURE_BACKOFF_MS);
+          console.warn(`[GDELT-Intel] Rate limited for ${retryAfterSeconds}s`);
+        } else {
+          console.warn(`[GDELT-Intel] Failed to fetch: ${response.status}`);
+        }
+        return cached?.articles || [];
+      }
+
+      const data = await response.json();
+      const articles: GdeltArticle[] = data.articles || [];
+
+      globalCooldownUntil = 0;
+      articleCache.set(cacheKey, { articles, timestamp: Date.now() });
+      return articles;
+    } catch (error) {
+      console.error('[GDELT-Intel] Fetch error:', error);
+      return cached?.articles || [];
+    } finally {
+      inFlightRequests.delete(cacheKey);
+    }
+  })();
+
+  inFlightRequests.set(cacheKey, request);
+  return request;
 }
 
 export async function fetchHotspotContext(hotspot: Hotspot): Promise<GdeltArticle[]> {
@@ -133,13 +164,17 @@ export async function fetchTopicIntelligence(topic: IntelTopic): Promise<TopicIn
 }
 
 export async function fetchAllTopicIntelligence(): Promise<TopicIntelligence[]> {
-  const results = await Promise.allSettled(
-    INTEL_TOPICS.map(topic => fetchTopicIntelligence(topic))
-  );
+  const results: TopicIntelligence[] = [];
 
-  return results
-    .filter((r): r is PromiseFulfilledResult<TopicIntelligence> => r.status === 'fulfilled')
-    .map(r => r.value);
+  for (const topic of INTEL_TOPICS) {
+    try {
+      results.push(await fetchTopicIntelligence(topic));
+    } catch {
+      // Keep partial results when one topic fails or is rate-limited.
+    }
+  }
+
+  return results;
 }
 
 export function formatArticleDate(dateStr: string): string {

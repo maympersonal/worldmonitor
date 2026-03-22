@@ -22,6 +22,10 @@ export interface GenerateSummaryOptions {
   allowBrowserFallback?: boolean;
 }
 
+function hasRemoteSummaryProvider(): boolean {
+  return isFeatureAvailable('aiGroq') || isFeatureAvailable('aiOpenRouter');
+}
+
 async function tryGroq(headlines: string[], geoContext?: string): Promise<SummarizationResult | null> {
   if (!isFeatureAvailable('aiGroq')) return null;
   try {
@@ -124,6 +128,18 @@ export async function generateSummary(
   }
 
   const allowBrowserFallback = options.allowBrowserFallback ?? true;
+  const remoteAvailable = hasRemoteSummaryProvider();
+  const browserAvailable = allowBrowserFallback && mlWorker.isAvailable;
+
+  if (!remoteAvailable && !browserAvailable) {
+    console.log(
+      allowBrowserFallback
+        ? '[Summarization] No summary providers available'
+        : '[Summarization] Remote providers unavailable and browser fallback disabled'
+    );
+    return null;
+  }
+
   const totalSteps = allowBrowserFallback ? 3 : 2;
 
   // Step 1: Try Groq (fast, 14.4K/day with 8b-instant + Redis cache)
@@ -141,8 +157,10 @@ export async function generateSummary(
   }
 
   if (!allowBrowserFallback) {
-    console.log('[Summarization] Browser fallback skipped for this request');
-    console.warn('[Summarization] All remote providers failed');
+    if (remoteAvailable) {
+      console.log('[Summarization] Browser fallback skipped for this request');
+      console.warn('[Summarization] All remote providers failed');
+    }
     return null;
   }
 

@@ -10,9 +10,46 @@ const MIN_RECORDS = 1;
 const ALLOWED_TIMESPANS = ['1d', '7d', '14d', '30d', '60d', '90d'];
 const CACHE_TTL_SECONDS = 10 * 60;
 const CACHE_TTL_MS = CACHE_TTL_SECONDS * 1000;
-const RETRYABLE_STATUSES = new Set([429, 500, 502, 503, 504]);
+const RETRYABLE_STATUSES = new Set([500, 502, 503, 504]);
+const GDELT_TIMEOUT_MS = 10_000;
+const GDELT_RATE_LIMIT_WINDOW_MS = 5_000;
+const DEFAULT_MODE = 'PointData';
+const GDELT_RATE_LIMIT_MESSAGE = 'GDELT rate limited';
 
 const fallbackCache = new Map();
+let rateLimitedUntil = 0;
+
+function createHttpError(status, message, details) {
+  const error = new Error(message);
+  error.status = status;
+  error.details = details;
+  return error;
+}
+
+function getErrorStatus(error) {
+  return typeof error?.status === 'number' ? error.status : null;
+}
+
+function getRetryAfterSeconds() {
+  return Math.max(1, Math.ceil((rateLimitedUntil - Date.now()) / 1000));
+}
+
+function buildRateLimitPayload(retryAfterSeconds) {
+  return {
+    error: GDELT_RATE_LIMIT_MESSAGE,
+    retryAfterSeconds,
+  };
+}
+
+function isExpectedContentType(format, contentType) {
+  const normalized = contentType.toLowerCase();
+  if (format === 'csv') return normalized.includes('csv') || normalized.includes('plain');
+  return normalized.includes('json');
+}
+
+function sleep(ms) {
+  return new Promise(resolve => setTimeout(resolve, ms));
+}
 
 function validateMaxRecords(val) {
   const num = parseInt(val, 10);
@@ -52,15 +89,26 @@ function setFallback(key, data) {
   fallbackCache.set(key, { data, timestamp: Date.now() });
 }
 
-async function fetchWithTimeout(url, timeoutMs = 10000) {
+async function fetchWithTimeout(url, timeoutMs = GDELT_TIMEOUT_MS) {
   const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), timeoutMs);
+  let didTimeout = false;
+  const timer = setTimeout(() => {
+    didTimeout = true;
+    controller.abort();
+  }, timeoutMs);
+
   try {
     return await fetch(url, { signal: controller.signal });
+  } catch (error) {
+    if (didTimeout) {
+      throw createHttpError(504, 'GDELT geo request timed out');
+    }
+    throw error;
   } finally {
     clearTimeout(timer);
   }
 }
+
 
 async function fetchWithRetry(url) {
   let lastError = null;
@@ -71,9 +119,15 @@ async function fetchWithRetry(url) {
       if (!RETRYABLE_STATUSES.has(response.status) || attempt === 2) {
         return response;
       }
+      await sleep(250 * attempt);
     } catch (error) {
       lastError = error;
+      const status = getErrorStatus(error);
+      if (status === 429 || status === 400 || status === 403 || status === 404) {
+        throw error;
+      }
       if (attempt === 2) throw error;
+      await sleep(250 * attempt);
     }
   }
 
@@ -105,7 +159,8 @@ export default async function handler(req) {
   const format = validateFormat(url.searchParams.get('format') || 'geojson');
   const maxrecords = validateMaxRecords(url.searchParams.get('maxrecords') || '250');
   const timespan = validateTimespan(url.searchParams.get('timespan') || '7d');
-  const cacheKey = `gdelt-geo:${hashString(`${query}|${format}|${maxrecords}|${timespan}`)}`;
+  const mode = DEFAULT_MODE;
+  const cacheKey = `gdelt-geo:${hashString(`${query}|${format}|${mode}|${maxrecords}|${timespan}`)}`;
 
   const cached = await getCachedJson(cacheKey);
   if (cached && typeof cached.data === 'string') {
@@ -135,32 +190,67 @@ export default async function handler(req) {
     });
   }
 
+  if (Date.now() < rateLimitedUntil) {
+    const retryAfterSeconds = getRetryAfterSeconds();
+    recordCacheTelemetry('/api/gdelt-geo', 'RATE-LIMITED');
+    return new Response(JSON.stringify(buildRateLimitPayload(retryAfterSeconds)), {
+      status: 429,
+      headers: {
+        'Content-Type': 'application/json',
+        'Retry-After': String(retryAfterSeconds),
+        ...cors,
+      },
+    });
+  }
+
   try {
     const gdeltUrl = new URL('https://api.gdeltproject.org/api/v2/geo/geo');
     gdeltUrl.searchParams.set('query', query);
+    gdeltUrl.searchParams.set('mode', mode);
     gdeltUrl.searchParams.set('format', format);
-    gdeltUrl.searchParams.set('maxrecords', String(maxrecords));
+    gdeltUrl.searchParams.set('maxpoints', String(maxrecords));
     gdeltUrl.searchParams.set('timespan', timespan);
 
     const response = await fetchWithRetry(gdeltUrl.toString());
 
-    if (!response.ok) {
-      return new Response(JSON.stringify({ error: 'Upstream service unavailable' }), {
-        status: 502,
-        headers: {
-          'Content-Type': 'application/json',
-          ...cors,
-        },
+    if (response.status === 429) {
+      rateLimitedUntil = Date.now() + GDELT_RATE_LIMIT_WINDOW_MS;
+      const bodyText = await response.text();
+      console.warn('[GDELT GEO] Upstream rate limited request', {
+        query,
+        retryAfterSeconds: GDELT_RATE_LIMIT_WINDOW_MS / 1000,
+        bodyPreview: bodyText.slice(0, 200),
       });
+      throw createHttpError(429, GDELT_RATE_LIMIT_MESSAGE, bodyText.slice(0, 500));
     }
 
-    const data = await response.text();
+    if (!response.ok) {
+      const bodyText = await response.text();
+      console.error('[GDELT GEO] Upstream request failed', {
+        url: gdeltUrl.toString(),
+        status: response.status,
+        bodyPreview: bodyText.slice(0, 500),
+      });
+      throw createHttpError(response.status, `GDELT returned ${response.status}`, bodyText.slice(0, 500));
+    }
+
     const contentType = response.headers.get('content-type') || (format === 'csv' ? 'text/csv' : 'application/json');
+    const data = await response.text();
+    if (!isExpectedContentType(format, contentType)) {
+      console.error('[GDELT GEO] Unexpected upstream content type', {
+        url: gdeltUrl.toString(),
+        contentType,
+        bodyPreview: data.slice(0, 500),
+      });
+      throw createHttpError(502, `Unexpected GDELT content-type: ${contentType || 'unknown'}`, data.slice(0, 500));
+    }
+
     const result = {
       data,
       contentType,
       query,
       format,
+      mode,
       maxrecords,
       timespan,
       cached_at: new Date().toISOString(),
@@ -193,9 +283,31 @@ export default async function handler(req) {
       });
     }
 
-    console.error('[GDELT] Fetch error:', toErrorMessage(error));
+    const errorStatus = getErrorStatus(error);
+    if (errorStatus === 429) {
+      const retryAfterSeconds = getRetryAfterSeconds();
+      recordCacheTelemetry('/api/gdelt-geo', 'RATE-LIMITED');
+      return new Response(JSON.stringify(buildRateLimitPayload(retryAfterSeconds)), {
+        status: 429,
+        headers: {
+          'Content-Type': 'application/json',
+          'Retry-After': String(retryAfterSeconds),
+          ...cors,
+        },
+      });
+    }
+
+    console.error('[GDELT GEO] final handler error', {
+      query,
+      format,
+      mode,
+      maxrecords,
+      timespan,
+      message: toErrorMessage(error),
+    });
+    
     recordCacheTelemetry('/api/gdelt-geo', 'ERROR');
-    return new Response(JSON.stringify({ error: `Failed to fetch GDELT data: ${toErrorMessage(error)}` }), {
+    return new Response(JSON.stringify({ error: `Failed to fetch GDELT data: ${toErrorMessage(error)}`, upstreamStatus: errorStatus }), {
       status: 502,
       headers: {
         'Content-Type': 'application/json',

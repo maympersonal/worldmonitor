@@ -7,11 +7,12 @@ import { getCachedJson, setCachedJson } from './_upstash-cache.js';
 import { recordCacheTelemetry } from './_cache-telemetry.js';
 import { getCorsHeaders, isDisallowedOrigin } from './_cors.js';
 
-const CACHE_KEY = 'hapi:conflict-events:v2';
+const CACHE_KEY = 'hapi:conflict-events:v3';
 const CACHE_TTL_SECONDS = 6 * 60 * 60; // 6 hours
 const CACHE_TTL_MS = CACHE_TTL_SECONDS * 1000;
 const RESPONSE_CACHE_CONTROL = 'public, max-age=1800';
 const RETRYABLE_STATUSES = new Set([429, 500, 502, 503, 504]);
+const HAPI_VERSION_CANDIDATES = ['v1', 'v2'];
 
 // In-memory fallback when Redis is unavailable.
 let fallbackCache = { data: null, timestamp: 0 };
@@ -57,6 +58,35 @@ async function fetchWithRetry(url, options = {}) {
   throw lastError instanceof Error ? lastError : new Error('HAPI fetch failed');
 }
 
+async function fetchConflictEvents(appIdentifier) {
+  let lastError = null;
+
+  for (const version of HAPI_VERSION_CANDIDATES) {
+    const url =
+      `https://hapi.humdata.org/api/${version}/coordination-context/conflict-events?output_format=json&limit=1000&offset=0&app_identifier=${encodeURIComponent(appIdentifier)}`;
+
+    try {
+      const response = await fetchWithRetry(url, {
+        headers: {
+          Accept: 'application/json',
+        },
+      });
+
+      if (response.ok) {
+        return { version, response };
+      }
+
+      lastError = new Error(`HAPI API error (${version}): ${response.status}`);
+    } catch (error) {
+      lastError = error;
+    }
+  }
+
+  throw lastError instanceof Error
+    ? lastError
+    : new Error('Unable to fetch HAPI conflict events from known API versions');
+}
+
 export default async function handler(req) {
   const cors = getCorsHeaders(req);
   if (isDisallowedOrigin(req)) {
@@ -90,18 +120,7 @@ export default async function handler(req) {
 
   try {
     const appId = btoa('worldmonitor:monitor@worldmonitor.app');
-    const response = await fetchWithRetry(
-      `https://hapi.humdata.org/api/v2/coordination-context/conflict-events?output_format=json&limit=1000&offset=0&app_identifier=${appId}`,
-      {
-        headers: {
-          'Accept': 'application/json',
-        },
-      }
-    );
-
-    if (!response.ok) {
-      throw new Error(`HAPI API error: ${response.status}`);
-    }
+    const { version, response } = await fetchConflictEvents(appId);
 
     const rawData = await response.json();
     const records = rawData.data || [];
@@ -140,6 +159,7 @@ export default async function handler(req) {
       success: true,
       count: Object.keys(byCountry).length,
       countries: Object.values(byCountry),
+      version,
       cached_at: new Date().toISOString(),
     };
 

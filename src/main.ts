@@ -60,7 +60,7 @@ window.addEventListener('unhandledrejection', (e) => {
 
 import { debugInjectTestEvents, debugGetCells, getCellCount } from '@/services/geo-convergence';
 import { initMetaTags } from '@/services/meta-tags';
-import { installRuntimeFetchPatch } from '@/services/runtime';
+import { installRuntimeFetchPatch, isDesktopRuntime } from '@/services/runtime';
 import { loadDesktopSecrets } from '@/services/runtime-config';
 import { applyStoredTheme } from '@/utils/theme-manager';
 import { clearChunkReloadGuard, installChunkReloadGuard } from '@/bootstrap/chunk-reload';
@@ -76,8 +76,31 @@ if (!('__TAURI_INTERNALS__' in window) && !('__TAURI__' in window)) {
 // Initialize dynamic meta tags for sharing
 initMetaTags();
 
+async function cleanupDesktopOfflineArtifacts(): Promise<void> {
+  if (!isDesktopRuntime()) return;
+
+  if ('serviceWorker' in navigator) {
+    try {
+      const registrations = await navigator.serviceWorker.getRegistrations();
+      await Promise.all(registrations.map((registration) => registration.unregister()));
+    } catch (error) {
+      console.warn('[PWA] Desktop service worker cleanup skipped', error);
+    }
+  }
+
+  if ('caches' in window) {
+    try {
+      const cacheKeys = await caches.keys();
+      await Promise.all(cacheKeys.map((cacheKey) => caches.delete(cacheKey)));
+    } catch (error) {
+      console.warn('[PWA] Desktop cache cleanup skipped', error);
+    }
+  }
+}
+
 // In desktop mode, route /api/* calls to the local Tauri sidecar backend.
 installRuntimeFetchPatch();
+void cleanupDesktopOfflineArtifacts();
 void loadDesktopSecrets();
 
 // Apply stored theme preference before app initialization (safety net for inline script)

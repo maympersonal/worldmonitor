@@ -7,6 +7,8 @@ const DEFAULT_REMOTE_HOSTS: Record<string, string> = {
 
 const DEFAULT_LOCAL_API_BASE = 'http://127.0.0.1:46123';
 const FORCE_DESKTOP_RUNTIME = import.meta.env.VITE_DESKTOP_RUNTIME === '1';
+const LOCAL_API_TOKEN_MAX_ATTEMPTS = 8;
+const LOCAL_API_TOKEN_RETRY_DELAY_MS = 75;
 
 function normalizeBaseUrl(baseUrl: string): string {
   return baseUrl.replace(/\/$/, '');
@@ -99,19 +101,17 @@ export function toRuntimeUrl(path: string): string {
   return `${baseUrl}${path}`;
 }
 
-const APP_HOSTS = new Set([
-  'worldmonitor.app',
-  'www.worldmonitor.app',
-  'tech.worldmonitor.app',
+const LOCAL_API_HOSTS = new Set([
   'localhost',
   '127.0.0.1',
+  'tauri.localhost',
 ]);
 
-function isAppOriginUrl(urlStr: string): boolean {
+function isLocalApiOriginUrl(urlStr: string): boolean {
   try {
     const u = new URL(urlStr);
     const host = u.hostname;
-    return APP_HOSTS.has(host) || host.endsWith('.worldmonitor.app');
+    return LOCAL_API_HOSTS.has(host) || host.endsWith('.tauri.localhost');
   } catch {
     return false;
   }
@@ -120,7 +120,7 @@ function isAppOriginUrl(urlStr: string): boolean {
 function getApiTargetFromRequestInput(input: RequestInfo | URL): string | null {
   if (typeof input === 'string') {
     if (input.startsWith('/')) return input;
-    if (isAppOriginUrl(input)) {
+    if (isLocalApiOriginUrl(input)) {
       const u = new URL(input);
       return `${u.pathname}${u.search}`;
     }
@@ -128,17 +128,24 @@ function getApiTargetFromRequestInput(input: RequestInfo | URL): string | null {
   }
 
   if (input instanceof URL) {
-    if (isAppOriginUrl(input.href)) {
+    if (isLocalApiOriginUrl(input.href)) {
       return `${input.pathname}${input.search}`;
     }
     return null;
   }
 
-  if (isAppOriginUrl(input.url)) {
+  if (isLocalApiOriginUrl(input.url)) {
     const u = new URL(input.url);
     return `${u.pathname}${u.search}`;
   }
   return null;
+}
+
+function isTokenOptionalRoute(target: string): boolean {
+  return target === '/api/service-status'
+    || target === '/api/local-status'
+    || target === '/api/local-traffic-log'
+    || target === '/api/local-debug-toggle';
 }
 
 function sleep(ms: number): Promise<void> {
@@ -185,6 +192,46 @@ export function installRuntimeFetchPatch(): void {
   const nativeFetch = window.fetch.bind(window);
   const localBase = getApiBaseUrl();
   let localApiToken: string | null = null;
+  let localApiTokenPromise: Promise<string | null> | null = null;
+
+  const resolveLocalApiToken = async (): Promise<string | null> => {
+    if (localApiToken) {
+      return localApiToken;
+    }
+
+    if (!localApiTokenPromise) {
+      localApiTokenPromise = (async () => {
+        let lastError: unknown = null;
+
+        for (let attempt = 1; attempt <= LOCAL_API_TOKEN_MAX_ATTEMPTS; attempt += 1) {
+          try {
+            const { invokeTauri } = await import('@/services/tauri-bridge');
+            const token = (await invokeTauri<string>('get_local_api_token')).trim();
+            if (token) {
+              localApiToken = token;
+              return token;
+            }
+          } catch (error) {
+            lastError = error;
+          }
+
+          if (attempt < LOCAL_API_TOKEN_MAX_ATTEMPTS) {
+            await sleep(LOCAL_API_TOKEN_RETRY_DELAY_MS * attempt);
+          }
+        }
+
+        if (lastError) {
+          console.warn('[runtime] Local API token unavailable after startup retry', lastError);
+        }
+
+        return null;
+      })().finally(() => {
+        localApiTokenPromise = null;
+      });
+    }
+
+    return localApiTokenPromise;
+  };
 
   window.fetch = async (input: RequestInfo | URL, init?: RequestInit): Promise<Response> => {
     const target = getApiTargetFromRequestInput(input);
@@ -199,10 +246,20 @@ export function installRuntimeFetchPatch(): void {
     }
 
     if (!localApiToken) {
-      try {
-        const { tryInvokeTauri } = await import('@/services/tauri-bridge');
-        localApiToken = await tryInvokeTauri<string>('get_local_api_token');
-      } catch { /* token unavailable — sidecar may not require it */ }
+      localApiToken = await resolveLocalApiToken();
+    }
+
+    if (!localApiToken && !isTokenOptionalRoute(target)) {
+      if (debug) console.warn(`[runtime] Missing local API token for ${target}`);
+      return new Response(JSON.stringify({
+        error: 'Local desktop API token unavailable',
+        target,
+      }), {
+        status: 503,
+        headers: {
+          'content-type': 'application/json',
+        },
+      });
     }
 
     const headers = new Headers(init?.headers);
