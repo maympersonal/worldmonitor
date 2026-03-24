@@ -15,9 +15,20 @@ export interface GdeltArticle {
 export interface IntelTopic {
   id: string;
   name: string;
-  query: string;
+  queries: string[];
   icon: string;
   description: string;
+}
+
+const CUBA_CITY_FILTER = '(Habana OR Havana)';
+const QUERY_RESULTS_PER_LANGUAGE = 6;
+const TOPIC_RESULTS_LIMIT = 10;
+
+function buildBilingualQueries(englishTerms: string[], spanishTerms: string[]): string[] {
+  return [
+    `${CUBA_CITY_FILTER} (${englishTerms.join(' OR ')}) sourcelang:english`,
+    `${CUBA_CITY_FILTER} (${spanishTerms.join(' OR ')}) sourcelang:spanish`,
+  ];
 }
 
 export interface TopicIntelligence {
@@ -30,42 +41,60 @@ export const INTEL_TOPICS: IntelTopic[] = [
   {
     id: 'military',
     name: 'Military Activity',
-    query: '((Cuba OR Cuban OR Habana OR Havana) AND (military exercise OR troop deployment OR airstrike OR "naval exercise")) sourcelang:(eng OR spa)',
+    queries: buildBilingualQueries(
+      ['"military exercise"', '"troop deployment"', 'airstrike', '"naval exercise"'],
+      ['"ejercicio militar"', '"despliegue de tropas"', 'bombardeo', '"ejercicio naval"'],
+    ),
     icon: '⚔️',
     description: 'Military exercises, deployments, and operations',
   },
   {
     id: 'cyber',
     name: 'Cyber Threats',
-    query: '((Cuba OR Cuban OR Habana OR Havana) AND (cyberattack OR ransomware OR hacking OR "data breach" OR APT)) sourcelang:(eng OR spa)',
+    queries: buildBilingualQueries(
+      ['cyberattack', 'ransomware', 'hacking', '"data breach"', 'APT'],
+      ['ciberataque', 'ransomware', 'hackeo', '"brecha de datos"', 'APT'],
+    ),
     icon: '🔓',
     description: 'Cyber attacks, ransomware, and digital threats',
   },
   {
     id: 'nuclear',
     name: 'Nuclear',
-    query: '((Cuba OR Cuban OR Habana OR Havana) AND (nuclear OR uranium enrichment OR IAEA OR "nuclear weapon" OR plutonium)) sourcelang:(eng OR spa)',
+    queries: buildBilingualQueries(
+      ['nuclear', '"uranium enrichment"', 'IAEA', '"nuclear weapon"', 'plutonium'],
+      ['nuclear', '"enriquecimiento de uranio"', 'OIEA', '"arma nuclear"', 'plutonio'],
+    ),
     icon: '☢️',
     description: 'Nuclear programs, IAEA inspections, proliferation',
   },
   {
     id: 'sanctions',
     name: 'Sanctions',
-    query: '((Cuba OR Cuban OR Habana OR Havana) AND (sanctions OR embargo OR "trade war" OR tariff OR "economic pressure")) sourcelang:(eng OR spa)',
+    queries: buildBilingualQueries(
+      ['sanctions', 'embargo', '"trade war"', 'tariff', '"economic pressure"'],
+      ['sanciones', 'embargo', '"guerra comercial"', 'arancel', '"presion economica"'],
+    ),
     icon: '🚫',
     description: 'Economic sanctions and trade restrictions',
   },
   {
     id: 'intelligence',
     name: 'Intelligence',
-    query: '((Cuba OR Cuban OR Habana OR Havana) AND (espionage OR spy OR intelligence agency OR covert OR surveillance)) sourcelang:(eng OR spa)',
+    queries: buildBilingualQueries(
+      ['espionage', 'spy', '"intelligence agency"', 'covert', 'surveillance'],
+      ['espionaje', 'espia', '"agencia de inteligencia"', 'encubierto', 'vigilancia'],
+    ),
     icon: '🕵️',
     description: 'Espionage, intelligence operations, surveillance',
   },
   {
     id: 'maritime',
     name: 'Maritime Security',
-    query: '((Cuba OR Cuban OR Habana OR Havana) AND (naval blockade OR piracy OR "strait of hormuz" OR "south china sea" OR warship)) sourcelang:(eng OR spa)',
+    queries: buildBilingualQueries(
+      ['"naval blockade"', 'piracy', '"strait of hormuz"', '"south china sea"', 'warship'],
+      ['"bloqueo naval"', 'pirateria', '"estrecho de ormuz"', '"mar de china meridional"', 'buque'],
+    ),
     icon: '🚢',
     description: 'Naval operations, maritime chokepoints, sea lanes',
   },
@@ -154,8 +183,55 @@ export async function fetchHotspotContext(hotspot: Hotspot): Promise<GdeltArticl
   return fetchGdeltArticles(query, 8, '48h');
 }
 
+function articleIdentity(article: GdeltArticle): string {
+  return article.url || `${article.title}|${article.date}`;
+}
+
+function articleTimestamp(article: GdeltArticle): number {
+  const time = article.date ? new Date(article.date).getTime() : 0;
+  return Number.isFinite(time) ? time : 0;
+}
+
+function compareRankedArticles(
+  a: GdeltArticle & { matchedQueries: number },
+  b: GdeltArticle & { matchedQueries: number },
+): number {
+  if (b.matchedQueries !== a.matchedQueries) {
+    return b.matchedQueries - a.matchedQueries;
+  }
+
+  const timeDelta = articleTimestamp(b) - articleTimestamp(a);
+  if (timeDelta !== 0) {
+    return timeDelta;
+  }
+
+  return a.title.localeCompare(b.title);
+}
+
 export async function fetchTopicIntelligence(topic: IntelTopic): Promise<TopicIntelligence> {
-  const articles = await fetchGdeltArticles(topic.query, 10, '24h');
+  const mergedArticles = new Map<string, GdeltArticle & { matchedQueries: number }>();
+
+  for (const query of topic.queries) {
+    const articles = await fetchGdeltArticles(query, QUERY_RESULTS_PER_LANGUAGE, '24h');
+
+    for (const article of articles) {
+      const key = articleIdentity(article);
+      const existing = mergedArticles.get(key);
+
+      if (existing) {
+        existing.matchedQueries += 1;
+        continue;
+      }
+
+      mergedArticles.set(key, { ...article, matchedQueries: 1 });
+    }
+  }
+
+  const articles = Array.from(mergedArticles.values())
+    .sort(compareRankedArticles)
+    .slice(0, TOPIC_RESULTS_LIMIT)
+    .map(({ matchedQueries: _matchedQueries, ...article }) => article);
+
   return {
     topic,
     articles,

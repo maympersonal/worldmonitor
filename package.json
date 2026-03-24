@@ -42,7 +42,8 @@
     "desktop:package:windows:tech:sign": "node scripts/desktop-package.mjs --os windows --variant tech --sign",
     "desktop:package:linux:full": "node scripts/desktop-package.mjs --os linux --variant full",
     "desktop:package:linux:tech": "node scripts/desktop-package.mjs --os linux --variant tech",
-    "desktop:package": "node scripts/desktop-package.mjs"
+    "desktop:package": "node scripts/desktop-package.mjs",
+    "verify:desktop:no-pwa": "VITE_DESKTOP_RUNTIME=1 vite build && node scripts/verify-desktop-no-pwa.mjs"
   },
   "devDependencies": {
     "@playwright/test": "^1.52.0",

@@ -177,6 +177,14 @@ jobs:
             echo "BUILD_VARIANT=full" >> $GITHUB_ENV
           fi
 
+      - name: Verify desktop frontend excludes PWA artifacts
+        if: matrix.platform == 'ubuntu-22.04'
+        shell: bash
+        env:
+          VITE_VARIANT: ${{ env.BUILD_VARIANT }}
+          VITE_DESKTOP_RUNTIME: '1'
+        run: npm run verify:desktop:no-pwa
+
       # ── Build with tauri-action ──
       # Signed builds: only when Apple signing secrets are valid and imported
       # Unsigned builds: fallback when no signing (Windows always uses this path)

@@ -10,6 +10,99 @@ const RSS_HEADERS = {
 const MAX_REDIRECTS = 5;
 const MAX_RETRIES = 2;
 const RETRYABLE_STATUSES = new Set([429, 500, 502, 503, 504]);
+const FEED_SNAPSHOT_TTL_MS = 30 * 60 * 1000;
+const BLOCKED_FEED_COOLDOWN_MS = 6 * 60 * 60 * 1000;
+const feedSnapshots = new Map();
+const blockedFeeds = new Map();
+
+function getFeedLocale(hostname) {
+  const normalized = hostname.toLowerCase();
+  if (
+    normalized.includes('lasillavacia') ||
+    normalized.includes('cubadebate') ||
+    normalized.includes('prensalatina')
+  ) {
+    return 'es-ES,es;q=0.9,en;q=0.7';
+  }
+  return 'en-US,en;q=0.9';
+}
+
+function getFeedSnapshot(feedUrl) {
+  const snapshot = feedSnapshots.get(feedUrl);
+  if (!snapshot) return null;
+  if (Date.now() - snapshot.timestamp > FEED_SNAPSHOT_TTL_MS) {
+    feedSnapshots.delete(feedUrl);
+    return null;
+  }
+  return snapshot;
+}
+
+function setFeedSnapshot(feedUrl, snapshot) {
+  feedSnapshots.set(feedUrl, { ...snapshot, timestamp: Date.now() });
+}
+
+function getBlockedUntil(feedUrl) {
+  const blockedUntil = blockedFeeds.get(feedUrl);
+  if (!blockedUntil) return 0;
+  if (Date.now() >= blockedUntil) {
+    blockedFeeds.delete(feedUrl);
+    return 0;
+  }
+  return blockedUntil;
+}
+
+function setBlockedFeed(feedUrl, cooldownMs = BLOCKED_FEED_COOLDOWN_MS) {
+  blockedFeeds.set(feedUrl, Date.now() + cooldownMs);
+}
+
+function clearBlockedFeed(feedUrl) {
+  blockedFeeds.delete(feedUrl);
+}
+
+function buildRequestHeaders(feedUrl, snapshot = null) {
+  const parsed = new URL(feedUrl);
+  const origin = `${parsed.protocol}//${parsed.host}`;
+  const headers = {
+    ...RSS_HEADERS,
+    'Accept-Language': getFeedLocale(parsed.hostname),
+    'Referer': `${origin}/`,
+    'Cache-Control': 'no-cache',
+    'Pragma': 'no-cache',
+  };
+
+  if (snapshot?.etag) {
+    headers['If-None-Match'] = snapshot.etag;
+  }
+
+  if (snapshot?.lastModified) {
+    headers['If-Modified-Since'] = snapshot.lastModified;
+  }
+
+  return headers;
+}
+
+function looksLikeXml(contentType, data) {
+  const lowerType = (contentType || '').toLowerCase();
+  if (lowerType.includes('xml') || lowerType.includes('rss') || lowerType.includes('atom')) {
+    return true;
+  }
+
+  const sample = data.trim().slice(0, 200).toLowerCase();
+  return sample.startsWith('<?xml') || sample.includes('<rss') || sample.includes('<feed');
+}
+
+function buildSnapshotResponse(snapshot, corsHeaders, extraHeaders = {}) {
+  return new Response(snapshot.body, {
+    status: 200,
+    headers: {
+      'Content-Type': snapshot.contentType || 'application/xml',
+      'Cache-Control': 'public, max-age=900, s-maxage=900, stale-while-revalidate=300',
+      'X-Cache': 'SNAPSHOT-HIT',
+      ...extraHeaders,
+      ...corsHeaders,
+    },
+  });
+}
 
 // Fetch with timeout
 async function fetchWithTimeout(url, options, timeoutMs = 15000) {
@@ -193,12 +286,16 @@ function isAllowedHostname(hostname) {
 
 async function fetchFeedResponse(feedUrl, timeoutMs) {
   let currentUrl = feedUrl;
+  const snapshot = getFeedSnapshot(feedUrl);
+  let conditionalHeaders = snapshot ? buildRequestHeaders(feedUrl, snapshot) : null;
 
   for (let redirectCount = 0; redirectCount <= MAX_REDIRECTS; redirectCount += 1) {
     const response = await fetchWithTimeout(currentUrl, {
-      headers: RSS_HEADERS,
+      headers: conditionalHeaders || buildRequestHeaders(currentUrl),
       redirect: 'manual',
     }, timeoutMs);
+
+    conditionalHeaders = null;
 
     if (response.status < 300 || response.status >= 400) {
       return response;
@@ -267,6 +364,8 @@ export default async function handler(req) {
 
   try {
     const parsedUrl = new URL(feedUrl);
+    const snapshot = getFeedSnapshot(feedUrl);
+    const blockedUntil = getBlockedUntil(feedUrl);
 
     // Security: Check if domain is allowed
     if (!isAllowedHostname(parsedUrl.hostname)) {
@@ -276,16 +375,58 @@ export default async function handler(req) {
       });
     }
 
+    if (blockedUntil > 0) {
+      const retryAfterSeconds = Math.max(60, Math.ceil((blockedUntil - Date.now()) / 1000));
+      if (snapshot) {
+        return buildSnapshotResponse(snapshot, corsHeaders, {
+          'Retry-After': String(retryAfterSeconds),
+          'X-Feed-State': 'blocked-stale',
+        });
+      }
+
+      return new Response(JSON.stringify({
+        error: 'Feed temporarily blocked by upstream',
+        url: feedUrl,
+        retryAfter: retryAfterSeconds,
+      }), {
+        status: 403,
+        headers: {
+          'Content-Type': 'application/json',
+          'Retry-After': String(retryAfterSeconds),
+          'X-Feed-State': 'blocked',
+          ...corsHeaders,
+        },
+      });
+    }
+
     // Google News is slow - use longer timeout
     const isGoogleNews = feedUrl.includes('news.google.com');
     const timeout = isGoogleNews ? 20000 : 12000;
 
     const response = await fetchFeedWithRetry(feedUrl, timeout);
+
+    if (response.status === 304 && snapshot) {
+      return buildSnapshotResponse(snapshot, corsHeaders, { 'X-Feed-State': 'not-modified' });
+    }
+
     const data = await response.text();
 
     if (!response.ok) {
       const details = data.trim().slice(0, 500);
       const upstreamStatus = response.status;
+
+      console.warn('[RSS PROXY] upstream response not ok', {
+        url: feedUrl,
+        finalUrl: response.url,
+        status: upstreamStatus,
+        contentType: response.headers.get('content-type'),
+        bodyPreview: details,
+      });
+
+      if (upstreamStatus === 403) {
+        setBlockedFeed(feedUrl);
+      }
+
       return new Response(JSON.stringify({
         error: 'Upstream feed error',
         details: details || `HTTP ${upstreamStatus}`,
@@ -293,11 +434,29 @@ export default async function handler(req) {
         url: feedUrl,
       }), {
         status: upstreamStatus,
-        headers: { 'Content-Type': 'application/json', ...corsHeaders },
+        headers: {
+          'Content-Type': 'application/json',
+          ...(upstreamStatus === 403 ? {
+            'Retry-After': String(BLOCKED_FEED_COOLDOWN_MS / 1000),
+            'X-Feed-State': 'blocked',
+          } : {}),
+          ...corsHeaders,
+        },
       });
     }
 
     const contentType = response.headers.get('content-type') || 'application/xml';
+    clearBlockedFeed(feedUrl);
+
+    if (looksLikeXml(contentType, data)) {
+      setFeedSnapshot(feedUrl, {
+        body: data,
+        contentType,
+        etag: response.headers.get('etag') || '',
+        lastModified: response.headers.get('last-modified') || '',
+      });
+    }
+
     return new Response(data, {
       status: response.status,
       headers: {

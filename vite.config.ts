@@ -4,6 +4,7 @@ import { resolve } from 'path';
 import pkg from './package.json';
 
 const isE2E = process.env.VITE_E2E === '1';
+const isDesktopRuntime = process.env.VITE_DESKTOP_RUNTIME === '1';
 
 const VARIANT_META: Record<string, {
   title: string;
@@ -167,7 +168,8 @@ export default defineConfig({
   plugins: [
     htmlVariantPlugin(),
     youtubeLivePlugin(),
-    VitePWA({
+    ...(isDesktopRuntime ? [] : [
+      VitePWA({
       registerType: 'autoUpdate',
       injectRegister: false,
 
@@ -270,10 +272,12 @@ export default defineConfig({
       devOptions: {
         enabled: false,
       },
-    }),
+      }),
+    ]),
   ],
   resolve: {
     alias: {
+      ...(isDesktopRuntime ? { '@/bootstrap/pwa-register': resolve(__dirname, 'src/bootstrap/pwa-register.noop.ts') } : {}),
       '@': resolve(__dirname, 'src'),
     },
   },

@@ -12,6 +12,12 @@ const railwayBaseUrl = wsRelayUrl
   : '';
 const railwayRss = (url: string) =>
   railwayBaseUrl ? `${railwayBaseUrl}/rss?url=${encodeURIComponent(url)}` : rss(url);
+const googleNewsRss = (
+  query: string,
+  hl = 'en-US',
+  gl = 'US',
+  ceid = 'US:en',
+) => rss(`https://news.google.com/rss/search?q=${query}&hl=${hl}&gl=${gl}&ceid=${ceid}`);
 
 // Source tier system for prioritization (lower = more authoritative)
 // Tier 1: Wire services - fastest, most reliable breaking news
@@ -476,17 +482,33 @@ const FULL_FEEDS: Record<string, Feed[]> = {
     { name: 'BBC Latin America', url: rss('https://feeds.bbci.co.uk/news/world/latin_america/rss.xml') },
     { name: 'Reuters LatAm', url: rss('https://news.google.com/rss/search?q=site:reuters.com+(Brazil+OR+Mexico+OR+Argentina)+when:3d&hl=en-US&gl=US&ceid=US:en') },
     { name: 'Guardian Americas', url: rss('https://www.theguardian.com/world/americas/rss') },
-    { name: 'La Silla Vacía', url: rss('https://www.lasillavacia.com/rss') },
+    {
+      name: 'La Silla Vacía',
+      url: railwayRss('https://www.lasillavacia.com/rss'),
+      fallbackUrls: [googleNewsRss('site:lasillavacia.com+when:7d', 'es-419', 'US', 'US:es-419')],
+    },
   ],
   asia: [
     { name: 'Asia News', url: rss('https://news.google.com/rss/search?q=(China+OR+Japan+OR+Korea+OR+India+OR+ASEAN)+when:2d&hl=en-US&gl=US&ceid=US:en') },
     { name: 'BBC Asia', url: rss('https://feeds.bbci.co.uk/news/world/asia/rss.xml') },
     { name: 'South China Morning Post', url: railwayRss('https://www.scmp.com/rss/91/feed/') },
     { name: 'Reuters Asia', url: rss('https://news.google.com/rss/search?q=site:reuters.com+(China+OR+Japan+OR+Taiwan+OR+Korea)+when:3d&hl=en-US&gl=US&ceid=US:en') },
-    { name: 'NHK World', url: railwayRss('https://rsshub.app/nhk/news/en') },
+    {
+      name: 'NHK World',
+      url: railwayRss('https://rsshub.app/nhk/news/en'),
+      fallbackUrls: [googleNewsRss('(site:nhk.or.jp+OR+"NHK+World")+when:3d')],
+    },
     { name: 'Nikkei Asia', url: rss('https://news.google.com/rss/search?q=site:asia.nikkei.com+when:3d&hl=en-US&gl=US&ceid=US:en') },
-    { name: 'MIIT (China)', url: railwayRss('https://rsshub.app/gov/miit/zcjd') },
-    { name: 'MOFCOM (China)', url: railwayRss('https://rsshub.app/gov/mofcom/article/xwfb') },
+    {
+      name: 'MIIT (China)',
+      url: railwayRss('https://rsshub.app/gov/miit/zcjd'),
+      fallbackUrls: [googleNewsRss('(site:miit.gov.cn+OR+MIIT+China)+when:7d')],
+    },
+    {
+      name: 'MOFCOM (China)',
+      url: railwayRss('https://rsshub.app/gov/mofcom/article/xwfb'),
+      fallbackUrls: [googleNewsRss('(site:mofcom.gov.cn+OR+MOFCOM+China)+when:7d')],
+    },
   ],
   energy: [
     { name: 'Oil & Gas', url: rss('https://news.google.com/rss/search?q=(oil+price+OR+OPEC+OR+"natural+gas"+OR+pipeline+OR+LNG)+when:2d&hl=en-US&gl=US&ceid=US:en') },
@@ -495,12 +517,16 @@ const FULL_FEEDS: Record<string, Feed[]> = {
     { name: 'Mining & Resources', url: rss('https://news.google.com/rss/search?q=(lithium+OR+"rare+earth"+OR+cobalt+OR+mining)+when:3d&hl=en-US&gl=US&ceid=US:en') },
   ],
   cuba: [
-    { name: 'Cubadebate', url: rss('https://www.cubadebate.cu/rss') },
+    { name: 'Cubadebate', url: rss('https://www.cubadebate.cu/feed') },
     { name: 'Granma', url: rss('https://www.granma.cu/feed') },
     { name: 'JuventudRevelde', url: rss('https://www.juventudrebelde.cu/get/rss/grupo/generales') },
     { name: 'Trabajadores', url: rss('https://www.juventudrebelde.cu/get/rss/grupo/generales') },
     { name: 'Tribuna', url: rss('https://www.trabajadores.cu/feed') },
-    { name: 'PrensaLatina', url: rss('https://www.prensalatina.cu/feed') },
+    {
+      name: 'PrensaLatina',
+      url: railwayRss('https://www.prensalatina.cu/feed'),
+      fallbackUrls: [googleNewsRss('(site:prensalatina.cu+OR+site:prensa-latina.cu+OR+"Prensa+Latina")+when:3d', 'es-419', 'US', 'US:es-419')],
+    },
   ]
 };
 
@@ -822,7 +848,12 @@ export const FEEDS = SITE_VARIANT === 'tech' ? TECH_FEEDS : SITE_VARIANT === 'fi
 export const INTEL_SOURCES: Feed[] = [
   // Defense & Security (Tier 1)
   { name: 'Defense One', url: rss('https://www.defenseone.com/rss/all/'), type: 'defense' },
-  { name: 'Breaking Defense', url: rss('https://breakingdefense.com/feed/'), type: 'defense' },
+  {
+    name: 'Breaking Defense',
+    url: railwayRss('https://breakingdefense.com/feed/'),
+    fallbackUrls: [googleNewsRss('site:breakingdefense.com+when:7d')],
+    type: 'defense',
+  },
   { name: 'The War Zone', url: rss('https://news.google.com/rss/search?q=site:thedrive.com+"war+zone"+when:7d&hl=en-US&gl=US&ceid=US:en'), type: 'defense' },
   { name: 'Defense News', url: rss('https://www.defensenews.com/arc/outboundfeeds/rss/?outputType=xml'), type: 'defense' },
   { name: 'Janes', url: rss('https://news.google.com/rss/search?q=site:janes.com+when:3d&hl=en-US&gl=US&ceid=US:en'), type: 'defense' },
@@ -841,7 +872,12 @@ export const INTEL_SOURCES: Feed[] = [
   { name: 'Brookings', url: rss('https://www.brookings.edu/feed/'), type: 'research' },
   { name: 'Carnegie', url: rss('https://carnegieendowment.org/rss/'), type: 'research' },
   { name: 'FAS', url: rss('https://fas.org/feed/'), type: 'research' },
-  { name: 'NTI', url: rss('https://www.nti.org/rss/'), type: 'research' },
+  {
+    name: 'NTI',
+    url: railwayRss('https://www.nti.org/rss/'),
+    fallbackUrls: [googleNewsRss('site:nti.org+(nuclear+OR+missile+OR+proliferation)+when:7d')],
+    type: 'research',
+  },
   { name: 'RUSI', url: rss('https://news.google.com/rss/search?q=site:rusi.org+when:7d&hl=en-US&gl=US&ceid=US:en'), type: 'research' },
   { name: 'Wilson Center', url: rss('https://news.google.com/rss/search?q=site:wilsoncenter.org+when:7d&hl=en-US&gl=US&ceid=US:en'), type: 'research' },
   { name: 'GMF', url: rss('https://news.google.com/rss/search?q=site:gmfus.org+when:7d&hl=en-US&gl=US&ceid=US:en'), type: 'research' },

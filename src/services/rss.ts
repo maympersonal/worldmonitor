@@ -8,9 +8,10 @@ import { ingestHeadlines } from './trending-keywords';
 
 // Per-feed circuit breaker: track failures and cooldowns
 const FEED_COOLDOWN_MS = 5 * 60 * 1000; // 5 minutes after failure
+const BLOCKED_FEED_COOLDOWN_MS = 6 * 60 * 60 * 1000; // 6 hours after upstream 403
 const MAX_FAILURES = 2; // failures before cooldown
 const MAX_CACHE_ENTRIES = 100; // Prevent unbounded growth
-const feedFailures = new Map<string, { count: number; cooldownUntil: number }>();
+const feedFailures = new Map<string, { count: number; cooldownUntil: number; blocked?: boolean }>();
 const feedCache = new Map<string, { items: NewsItem[]; timestamp: number }>();
 const CACHE_TTL = 10 * 60 * 1000; // 10 minutes
 const AI_CLASSIFY_DEDUP_MS = 30 * 60 * 1000;
@@ -70,11 +71,23 @@ function isFeedOnCooldown(feedName: string): boolean {
   return false;
 }
 
-function recordFeedFailure(feedName: string): void {
-  const state = feedFailures.get(feedName) || { count: 0, cooldownUntil: 0 };
+function recordFeedFailure(feedName: string, options: { status?: number; blocked?: boolean } = {}): void {
+  const state = feedFailures.get(feedName) || { count: 0, cooldownUntil: 0, blocked: false };
+  const isBlocked = options.blocked || options.status === 403;
+
+  if (isBlocked) {
+    state.count = Math.max(state.count + 1, MAX_FAILURES);
+    state.blocked = true;
+    state.cooldownUntil = Date.now() + BLOCKED_FEED_COOLDOWN_MS;
+    console.warn(`[RSS] ${feedName} on cooldown for 6 hours after upstream block`);
+    feedFailures.set(feedName, state);
+    return;
+  }
+
   state.count++;
   if (state.count >= MAX_FAILURES) {
     state.cooldownUntil = Date.now() + FEED_COOLDOWN_MS;
+    state.blocked = false;
     console.warn(`[RSS] ${feedName} on cooldown for 5 minutes after ${state.count} failures`);
   }
   feedFailures.set(feedName, state);
@@ -82,6 +95,16 @@ function recordFeedFailure(feedName: string): void {
 
 function recordFeedSuccess(feedName: string): void {
   feedFailures.delete(feedName);
+}
+
+function getErrorStatus(error: unknown): number | undefined {
+  if (!error || typeof error !== 'object' || !('status' in error)) return undefined;
+  const status = Number(error.status);
+  return Number.isFinite(status) ? status : undefined;
+}
+
+function isBlockedError(error: unknown): boolean {
+  return Boolean(error && typeof error === 'object' && 'blocked' in error && error.blocked);
 }
 
 function toAiKey(title: string): string {
@@ -113,6 +136,28 @@ function canQueueAiClassification(title: string): boolean {
   return true;
 }
 
+function getFeedAttemptUrls(feed: Feed): string[] {
+  return Array.from(new Set([feed.url, ...(feed.fallbackUrls || [])].filter(Boolean)));
+}
+
+function buildFeedHttpError(feedName: string, response: Response): Error {
+  const error = new Error(`HTTP ${response.status}`);
+  Object.assign(error, {
+    status: response.status,
+    blocked: response.status === 403 || response.headers.get('x-feed-state') === 'blocked',
+    feedName,
+  });
+  return error;
+}
+
+function shouldTryFallback(error: unknown): boolean {
+  const status = getErrorStatus(error);
+  if (status === 403 || status === 429 || status === 502 || status === 503 || status === 504) {
+    return true;
+  }
+  return isBlockedError(error);
+}
+
 export async function fetchFeed(feed: Feed): Promise<NewsItem[]> {
   if (feedCache.size > MAX_CACHE_ENTRIES / 2) cleanupCaches();
 
@@ -128,86 +173,121 @@ export async function fetchFeed(feed: Feed): Promise<NewsItem[]> {
   }
 
   try {
-    const response = await fetchWithProxy(feed.url);
-    if (!response.ok) throw new Error(`HTTP ${response.status}`);
-    const text = await response.text();
-    const parser = new DOMParser();
-    const doc = parser.parseFromString(text, 'text/xml');
+    const attemptUrls = getFeedAttemptUrls(feed);
+    let lastError: unknown = null;
 
-    const parseError = doc.querySelector('parsererror');
-    if (parseError) {
-      console.warn(`Parse error for ${feed.name}`);
-      recordFeedFailure(feed.name);
-      const persistent = await loadPersistentFeed(feed.name);
-      return cached?.items || persistent || [];
-    }
+    for (let attemptIndex = 0; attemptIndex < attemptUrls.length; attemptIndex += 1) {
+      const attemptUrl = attemptUrls[attemptIndex]!;
+      const isFallback = attemptIndex > 0;
 
-    let items = doc.querySelectorAll('item');
-    const isAtom = items.length === 0;
-    if (isAtom) items = doc.querySelectorAll('entry');
-
-    const parsed = Array.from(items)
-      .slice(0, 5)
-      .map((item) => {
-        const title = item.querySelector('title')?.textContent || '';
-        let link = '';
-        if (isAtom) {
-          const linkEl = item.querySelector('link[href]');
-          link = linkEl?.getAttribute('href') || '';
-        } else {
-          link = item.querySelector('link')?.textContent || '';
+      try {
+        const response = await fetchWithProxy(attemptUrl);
+        if (!response.ok) {
+          throw buildFeedHttpError(feed.name, response);
         }
 
-        const pubDateStr = isAtom
-          ? (item.querySelector('published')?.textContent || item.querySelector('updated')?.textContent || '')
-          : (item.querySelector('pubDate')?.textContent || '');
-        const parsedDate = pubDateStr ? new Date(pubDateStr) : new Date();
-        const pubDate = Number.isNaN(parsedDate.getTime()) ? new Date() : parsedDate;
-        const threat = classifyByKeyword(title, SITE_VARIANT);
-        const isAlert = threat.level === 'critical' || threat.level === 'high';
-        const geoMatches = inferGeoHubsFromTitle(title);
-        const topGeo = geoMatches[0];
+        const contentType = (response.headers.get('content-type') || '').toLowerCase();
+        const text = await response.text();
+        const parser = new DOMParser();
+        const doc = parser.parseFromString(text, 'text/xml');
 
-        return {
-          source: feed.name,
-          title,
-          link,
-          pubDate,
-          isAlert,
-          threat,
-          ...(topGeo && { lat: topGeo.hub.lat, lon: topGeo.hub.lon, locationName: topGeo.hub.name }),
-        };
-      });
-
-    feedCache.set(feed.name, { items: parsed, timestamp: Date.now() });
-    void setPersistentCache(`feed:${feed.name}`, toSerializable(parsed));
-    recordFeedSuccess(feed.name);
-    ingestHeadlines(parsed.map(item => ({
-      title: item.title,
-      pubDate: item.pubDate,
-      source: item.source,
-      link: item.link,
-    })));
-
-    const aiCandidates = parsed
-      .filter(item => item.threat.source === 'keyword')
-      .sort((a, b) => b.pubDate.getTime() - a.pubDate.getTime())
-      .slice(0, AI_CLASSIFY_MAX_PER_FEED);
-
-    for (const item of aiCandidates) {
-      if (!canQueueAiClassification(item.title)) continue;
-      classifyWithAI(item.title, SITE_VARIANT).then((aiResult) => {
-        if (aiResult && aiResult.confidence > item.threat.confidence) {
-          item.threat = aiResult;
-          item.isAlert = aiResult.level === 'critical' || aiResult.level === 'high';
+        const parseError = doc.querySelector('parsererror');
+        if (parseError) {
+          const parseFailure = new Error(`Parse error (${contentType || 'unknown content type'})`);
+          Object.assign(parseFailure, {
+            blocked: contentType.includes('html'),
+          });
+          throw parseFailure;
         }
-      }).catch(() => {});
+
+        let items = doc.querySelectorAll('item');
+        const isAtom = items.length === 0;
+        if (isAtom) items = doc.querySelectorAll('entry');
+
+        const parsed = Array.from(items)
+          .slice(0, 5)
+          .map((item) => {
+            const title = item.querySelector('title')?.textContent || '';
+            let link = '';
+            if (isAtom) {
+              const linkEl = item.querySelector('link[href]');
+              link = linkEl?.getAttribute('href') || '';
+            } else {
+              link = item.querySelector('link')?.textContent || '';
+            }
+
+            const pubDateStr = isAtom
+              ? (item.querySelector('published')?.textContent || item.querySelector('updated')?.textContent || '')
+              : (item.querySelector('pubDate')?.textContent || '');
+            const parsedDate = pubDateStr ? new Date(pubDateStr) : new Date();
+            const pubDate = Number.isNaN(parsedDate.getTime()) ? new Date() : parsedDate;
+            const threat = classifyByKeyword(title, SITE_VARIANT);
+            const isAlert = threat.level === 'critical' || threat.level === 'high';
+            const geoMatches = inferGeoHubsFromTitle(title);
+            const topGeo = geoMatches[0];
+
+            return {
+              source: feed.name,
+              title,
+              link,
+              pubDate,
+              isAlert,
+              threat,
+              ...(topGeo && { lat: topGeo.hub.lat, lon: topGeo.hub.lon, locationName: topGeo.hub.name }),
+            };
+          });
+
+        if (isFallback) {
+          console.info(`[RSS] ${feed.name} recovered via fallback source`);
+        }
+
+        feedCache.set(feed.name, { items: parsed, timestamp: Date.now() });
+        void setPersistentCache(`feed:${feed.name}`, toSerializable(parsed));
+        recordFeedSuccess(feed.name);
+        ingestHeadlines(parsed.map(item => ({
+          title: item.title,
+          pubDate: item.pubDate,
+          source: item.source,
+          link: item.link,
+        })));
+
+        const aiCandidates = parsed
+          .filter(item => item.threat.source === 'keyword')
+          .sort((a, b) => b.pubDate.getTime() - a.pubDate.getTime())
+          .slice(0, AI_CLASSIFY_MAX_PER_FEED);
+
+        for (const item of aiCandidates) {
+          if (!canQueueAiClassification(item.title)) continue;
+          classifyWithAI(item.title, SITE_VARIANT).then((aiResult) => {
+            if (aiResult && aiResult.confidence > item.threat.confidence) {
+              item.threat = aiResult;
+              item.isAlert = aiResult.level === 'critical' || aiResult.level === 'high';
+            }
+          }).catch(() => {});
+        }
+
+        return parsed;
+      } catch (error) {
+        lastError = error;
+
+        if (attemptIndex < attemptUrls.length - 1 && shouldTryFallback(error)) {
+          console.warn(`[RSS] ${feed.name} primary source failed, trying fallback ${attemptIndex + 1}/${attemptUrls.length - 1}`);
+          continue;
+        }
+
+        if (error instanceof Error && error.message.startsWith('Parse error')) {
+          console.warn(`Parse error for ${feed.name}`);
+        }
+      }
     }
 
-    return parsed;
+    throw lastError instanceof Error ? lastError : new Error('RSS fetch failed');
   } catch (e) {
     console.error(`Failed to fetch ${feed.name}:`, e);
-    recordFeedFailure(feed.name);
+    recordFeedFailure(feed.name, {
+      status: getErrorStatus(e),
+      blocked: isBlockedError(e),
+    });
     const persistent = await loadPersistentFeed(feed.name);
     return cached?.items || persistent || [];
   }

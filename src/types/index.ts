@@ -3,6 +3,7 @@ export type PropagandaRisk = 'low' | 'medium' | 'high';
 export interface Feed {
   name: string;
   url: string;
+  fallbackUrls?: string[];
   type?: string;
   region?: string;
   propagandaRisk?: PropagandaRisk;
