@@ -9,6 +9,7 @@ const DEFAULT_LOCAL_API_BASE = 'http://127.0.0.1:46123';
 const FORCE_DESKTOP_RUNTIME = import.meta.env.VITE_DESKTOP_RUNTIME === '1';
 const LOCAL_API_TOKEN_MAX_ATTEMPTS = 8;
 const LOCAL_API_TOKEN_RETRY_DELAY_MS = 75;
+const LOCAL_API_BYPASS_COOLDOWN_MS = 30_000;
 
 function normalizeBaseUrl(baseUrl: string): string {
   return baseUrl.replace(/\/$/, '');
@@ -184,6 +185,31 @@ async function fetchLocalWithStartupRetry(
     : new Error('Local API unavailable');
 }
 
+function isLocalOnlyRoute(target: string): boolean {
+  return target === '/api/service-status'
+    || target === '/api/local-status'
+    || target === '/api/local-traffic-log'
+    || target === '/api/local-debug-toggle'
+    || target === '/api/local-env-update'
+    || target === '/api/local-validate-secret';
+}
+
+function shouldUseSameOriginApiFallback(): boolean {
+  if (typeof window === 'undefined') {
+    return false;
+  }
+
+  if (!import.meta.env.DEV) {
+    return false;
+  }
+
+  const host = window.location?.hostname ?? '';
+  return host === 'localhost'
+    || host === '127.0.0.1'
+    || host === 'tauri.localhost'
+    || host.endsWith('.tauri.localhost');
+}
+
 export function installRuntimeFetchPatch(): void {
   if (!isDesktopRuntime() || typeof window === 'undefined' || (window as unknown as Record<string, unknown>).__wmFetchPatched) {
     return;
@@ -191,8 +217,51 @@ export function installRuntimeFetchPatch(): void {
 
   const nativeFetch = window.fetch.bind(window);
   const localBase = getApiBaseUrl();
+  const fallbackBase = getRemoteApiBaseUrl();
+  const preferSameOriginFallback = shouldUseSameOriginApiFallback();
   let localApiToken: string | null = null;
   let localApiTokenPromise: Promise<string | null> | null = null;
+  let localApiBypassUntil = 0;
+  let localApiFailureCount = 0;
+
+  const getFallbackUrl = (target: string): string => {
+    if (preferSameOriginFallback) {
+      return target;
+    }
+
+    return `${fallbackBase}${target}`;
+  };
+
+  const fetchFallback = async (
+    target: string,
+    init: RequestInit | undefined,
+    reason: string,
+    debug: boolean,
+  ): Promise<Response> => {
+    const fallbackUrl = getFallbackUrl(target);
+    if (debug) {
+      console.warn(`[runtime] Falling back to ${fallbackUrl} for ${target} (${reason})`);
+    }
+
+    return nativeFetch(fallbackUrl, init);
+  };
+
+  const markLocalApiUnavailable = (
+    target: string,
+    error: unknown,
+    debug: boolean,
+  ): void => {
+    localApiFailureCount += 1;
+    const cooldownMs = Math.min(
+      LOCAL_API_BYPASS_COOLDOWN_MS * localApiFailureCount,
+      5 * 60 * 1000,
+    );
+    localApiBypassUntil = Date.now() + cooldownMs;
+
+    if (debug) {
+      console.warn(`[runtime] Local API unavailable for ${target}; bypassing for ${cooldownMs}ms`, error);
+    }
+  };
 
   const resolveLocalApiToken = async (): Promise<string | null> => {
     if (localApiToken) {
@@ -240,9 +309,13 @@ export function installRuntimeFetchPatch(): void {
     if (!target?.startsWith('/api/')) {
       if (debug) {
         const raw = typeof input === 'string' ? input : input instanceof URL ? input.href : input.url;
-        console.log(`[fetch] passthrough → ${raw.slice(0, 120)}`);
+        console.log(`[fetch] passthrough -> ${raw.slice(0, 120)}`);
       }
       return nativeFetch(input, init);
+    }
+
+    if (Date.now() < localApiBypassUntil && !isLocalOnlyRoute(target)) {
+      return fetchFallback(target, init, 'local API cooldown active', debug);
     }
 
     if (!localApiToken) {
@@ -250,7 +323,18 @@ export function installRuntimeFetchPatch(): void {
     }
 
     if (!localApiToken && !isTokenOptionalRoute(target)) {
-      if (debug) console.warn(`[runtime] Missing local API token for ${target}`);
+      markLocalApiUnavailable(target, new Error('Local API token unavailable'), debug);
+
+      if (!isLocalOnlyRoute(target)) {
+        try {
+          return await fetchFallback(target, init, 'local API token unavailable', debug);
+        } catch (fallbackError) {
+          if (debug) {
+            console.warn(`[runtime] Fallback fetch failed for ${target}`, fallbackError);
+          }
+        }
+      }
+
       return new Response(JSON.stringify({
         error: 'Local desktop API token unavailable',
         target,
@@ -269,15 +353,32 @@ export function installRuntimeFetchPatch(): void {
     const localInit = { ...init, headers };
 
     const localUrl = `${localBase}${target}`;
-    if (debug) console.log(`[fetch] intercept → ${target}`);
+    if (debug) {
+      console.log(`[fetch] intercept -> ${target}`);
+    }
 
     try {
       const t0 = performance.now();
       const response = await fetchLocalWithStartupRetry(nativeFetch, localUrl, localInit);
-      if (debug) console.log(`[fetch] ${target} → ${response.status} (${Math.round(performance.now() - t0)}ms)`);
+      localApiFailureCount = 0;
+      localApiBypassUntil = 0;
+      if (debug) {
+        console.log(`[fetch] ${target} -> ${response.status} (${Math.round(performance.now() - t0)}ms)`);
+      }
       return response;
     } catch (error) {
-      if (debug) console.warn(`[runtime] Local API unavailable for ${target}`, error);
+      markLocalApiUnavailable(target, error, debug);
+
+      if (!isLocalOnlyRoute(target)) {
+        try {
+          return await fetchFallback(target, init, 'local API unavailable', debug);
+        } catch (fallbackError) {
+          if (debug) {
+            console.warn(`[runtime] Fallback fetch failed for ${target}`, fallbackError);
+          }
+        }
+      }
+
       return new Response(JSON.stringify({
         error: 'Local desktop API unavailable',
         target,
