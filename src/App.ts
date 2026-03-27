@@ -23,14 +23,11 @@ import { fetchAllFires, flattenFires, computeRegionStats } from '@/services/firm
 import { SatelliteFiresPanel } from '@/components/SatelliteFiresPanel';
 import { analyzeFlightsForSurge, surgeAlertToSignal, detectForeignMilitaryPresence, foreignPresenceToSignal, type TheaterPostureSummary } from '@/services/military-surge';
 import { fetchCachedTheaterPosture } from '@/services/cached-theater-posture';
-import { ingestProtestsForCII, ingestMilitaryForCII, ingestNewsForCII, ingestOutagesForCII, ingestConflictsForCII, ingestUcdpForCII, ingestHapiForCII, ingestDisplacementForCII, ingestClimateForCII, startLearning, isInLearningMode, calculateCII, getCountryData, TIER1_COUNTRIES } from '@/services/country-instability';
+import { ingestProtestsForCII, ingestMilitaryForCII, ingestNewsForCII, ingestOutagesForCII, ingestConflictsForCII, ingestHapiForCII, ingestClimateForCII, startLearning, isInLearningMode, calculateCII, getCountryData, TIER1_COUNTRIES } from '@/services/country-instability';
 import { dataFreshness, type DataSourceId } from '@/services/data-freshness';
 import { focusInvestmentOnMap } from '@/services/investments-focus';
 import { fetchConflictEvents } from '@/services/conflicts';
-import { fetchUcdpClassifications } from '@/services/ucdp';
 import { fetchHapiSummary } from '@/services/hapi';
-import { fetchUcdpEvents, deduplicateAgainstAcled } from '@/services/ucdp-events';
-import { fetchUnhcrPopulation } from '@/services/unhcr';
 import { fetchClimateAnomalies } from '@/services/climate';
 import { enrichEventsWithExposure } from '@/services/population-exposure';
 import { buildMapUrl, debounce, loadFromStorage, parseMapUrlState, saveToStorage, ExportPanel, getCircuitBreakerCooldownInfo, isMobileDevice, setTheme, getCurrentTheme } from '@/utils';
@@ -76,7 +73,6 @@ import {
   ETFFlowsPanel,
   StablecoinPanel,
   UcdpEventsPanel,
-  DisplacementPanel,
   ClimateAnomalyPanel,
   PopulationExposurePanel,
   InvestmentsPanel,
@@ -2088,10 +2084,11 @@ export class App {
     this.newsPanels['ipo'] = ipoPanel;
     this.panels['ipo'] = ipoPanel;
 
-    const thinktanksPanel = new NewsPanel('thinktanks', t('panels.thinktanks'));
-    this.attachRelatedAssetHandlers(thinktanksPanel);
-    this.newsPanels['thinktanks'] = thinktanksPanel;
-    this.panels['thinktanks'] = thinktanksPanel;
+    // Desactivado por solicitud: centros de estudio (thinktanks).
+    // const thinktanksPanel = new NewsPanel('thinktanks', t('panels.thinktanks'));
+    // this.attachRelatedAssetHandlers(thinktanksPanel);
+    // this.newsPanels['thinktanks'] = thinktanksPanel;
+    // this.panels['thinktanks'] = thinktanksPanel;
 
     // Panel desactivado temporalmente:
     // const economicPanel = new EconomicPanel();
@@ -2122,6 +2119,8 @@ export class App {
     // If a category key collides with an existing data panel key (e.g. markets),
     // create a separate `${key}-news` panel to avoid clobbering the data panel.
     for (const key of Object.keys(FEEDS)) {
+      // Desactivado por solicitud: no crear/cargar la categoría thinktanks.
+      if (key === 'thinktanks') continue;
       if (this.newsPanels[key]) continue;
       if (!Array.isArray((FEEDS as Record<string, unknown>)[key])) continue;
       const panelKey = this.panels[key] && !this.newsPanels[key] ? `${key}-news` : key;
@@ -2165,17 +2164,19 @@ export class App {
       });
       this.panels['strategic-posture'] = strategicPosturePanel;
 
-      const ucdpEventsPanel = new UcdpEventsPanel();
-      ucdpEventsPanel.setEventClickHandler((lat, lon) => {
-        this.map?.setCenter(lat, lon, 5);
-      });
-      this.panels['ucdp-events'] = ucdpEventsPanel;
+      // Desactivado por solicitud: panel de eventos de conflicto UCDP.
+      // const ucdpEventsPanel = new UcdpEventsPanel();
+      // ucdpEventsPanel.setEventClickHandler((lat, lon) => {
+      //   this.map?.setCenter(lat, lon, 5);
+      // });
+      // this.panels['ucdp-events'] = ucdpEventsPanel;
 
-      const displacementPanel = new DisplacementPanel();
-      displacementPanel.setCountryClickHandler((lat, lon) => {
-        this.map?.setCenter(lat, lon, 4);
-      });
-      this.panels['displacement'] = displacementPanel;
+      // Desactivado por solicitud: panel de desplazamiento ACNUR/UNHCR.
+      // const displacementPanel = new DisplacementPanel();
+      // displacementPanel.setCountryClickHandler((lat, lon) => {
+      //   this.map?.setCenter(lat, lon, 4);
+      // });
+      // this.panels['displacement'] = displacementPanel;
 
       const climatePanel = new ClimateAnomalyPanel();
       climatePanel.setZoneClickHandler((lat, lon) => {
@@ -3581,17 +3582,17 @@ export class App {
       }
     })());
 
-    // Fetch UCDP conflict classifications (war vs minor vs none)
-    tasks.push((async () => {
-      try {
-        const classifications = await fetchUcdpClassifications();
-        ingestUcdpForCII(classifications);
-        if (classifications.size > 0) dataFreshness.recordUpdate('ucdp', classifications.size);
-      } catch (error) {
-        console.error('[Intelligence] UCDP fetch failed:', error);
-        dataFreshness.recordError('ucdp', String(error));
-      }
-    })());
+    // Desactivado por solicitud: clasificación UCDP para CII.
+    // tasks.push((async () => {
+    //   try {
+    //     const classifications = await fetchUcdpClassifications();
+    //     ingestUcdpForCII(classifications);
+    //     if (classifications.size > 0) dataFreshness.recordUpdate('ucdp', classifications.size);
+    //   } catch (error) {
+    //     console.error('[Intelligence] UCDP fetch failed:', error);
+    //     dataFreshness.recordError('ucdp', String(error));
+    //   }
+    // })());
 
     // Fetch HDX HAPI aggregated conflict data (fallback/validation)
     tasks.push((async () => {
@@ -3666,52 +3667,52 @@ export class App {
       }
     })());
 
-    // Fetch UCDP georeferenced events (battles, one-sided violence, non-state conflict)
-    tasks.push((async () => {
-      try {
-        const [result, protestEvents] = await Promise.all([
-          fetchUcdpEvents(),
-          protestsTask,
-        ]);
-        if (!result.success) {
-          dataFreshness.recordError('ucdp_events', 'UCDP events unavailable (retaining prior event state)');
-          return;
-        }
-        const acledEvents = protestEvents.map(e => ({
-          latitude: e.lat, longitude: e.lon, event_date: e.time.toISOString(), fatalities: e.fatalities ?? 0,
-        }));
-        const events = deduplicateAgainstAcled(result.data, acledEvents);
-        (this.panels['ucdp-events'] as UcdpEventsPanel)?.setEvents(events);
-        if (this.mapLayers.ucdpEvents) {
-          this.map?.setUcdpEvents(events);
-        }
-        if (events.length > 0) dataFreshness.recordUpdate('ucdp_events', events.length);
-      } catch (error) {
-        console.error('[Intelligence] UCDP events fetch failed:', error);
-        dataFreshness.recordError('ucdp_events', String(error));
-      }
-    })());
+    // Desactivado por solicitud: eventos de conflicto UCDP.
+    // tasks.push((async () => {
+    //   try {
+    //     const [result, protestEvents] = await Promise.all([
+    //       fetchUcdpEvents(),
+    //       protestsTask,
+    //     ]);
+    //     if (!result.success) {
+    //       dataFreshness.recordError('ucdp_events', 'UCDP events unavailable (retaining prior event state)');
+    //       return;
+    //     }
+    //     const acledEvents = protestEvents.map(e => ({
+    //       latitude: e.lat, longitude: e.lon, event_date: e.time.toISOString(), fatalities: e.fatalities ?? 0,
+    //     }));
+    //     const events = deduplicateAgainstAcled(result.data, acledEvents);
+    //     (this.panels['ucdp-events'] as UcdpEventsPanel)?.setEvents(events);
+    //     if (this.mapLayers.ucdpEvents) {
+    //       this.map?.setUcdpEvents(events);
+    //     }
+    //     if (events.length > 0) dataFreshness.recordUpdate('ucdp_events', events.length);
+    //   } catch (error) {
+    //     console.error('[Intelligence] UCDP events fetch failed:', error);
+    //     dataFreshness.recordError('ucdp_events', String(error));
+    //   }
+    // })());
 
-    // Fetch UNHCR displacement data (refugees, asylum seekers, IDPs)
-    tasks.push((async () => {
-      try {
-        const unhcrResult = await fetchUnhcrPopulation();
-        if (!unhcrResult.ok) {
-          dataFreshness.recordError('unhcr', 'UNHCR displacement unavailable (retaining prior displacement state)');
-          return;
-        }
-        const data = unhcrResult.data;
-        (this.panels['displacement'] as DisplacementPanel)?.setData(data);
-        ingestDisplacementForCII(data.countries);
-        if (this.mapLayers.displacement && data.topFlows) {
-          this.map?.setDisplacementFlows(data.topFlows);
-        }
-        if (data.countries.length > 0) dataFreshness.recordUpdate('unhcr', data.countries.length);
-      } catch (error) {
-        console.error('[Intelligence] UNHCR displacement fetch failed:', error);
-        dataFreshness.recordError('unhcr', String(error));
-      }
-    })());
+    // Desactivado por solicitud: desplazamiento ACNUR/UNHCR.
+    // tasks.push((async () => {
+    //   try {
+    //     const unhcrResult = await fetchUnhcrPopulation();
+    //     if (!unhcrResult.ok) {
+    //       dataFreshness.recordError('unhcr', 'UNHCR displacement unavailable (retaining prior displacement state)');
+    //       return;
+    //     }
+    //     const data = unhcrResult.data;
+    //     (this.panels['displacement'] as DisplacementPanel)?.setData(data);
+    //     ingestDisplacementForCII(data.countries);
+    //     if (this.mapLayers.displacement && data.topFlows) {
+    //       this.map?.setDisplacementFlows(data.topFlows);
+    //     }
+    //     if (data.countries.length > 0) dataFreshness.recordUpdate('unhcr', data.countries.length);
+    //   } catch (error) {
+    //     console.error('[Intelligence] UNHCR displacement fetch failed:', error);
+    //     dataFreshness.recordError('unhcr', String(error));
+    //   }
+    // })());
 
     // Fetch climate anomalies (temperature/precipitation deviations)
     tasks.push((async () => {
