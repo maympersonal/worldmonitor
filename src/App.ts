@@ -2916,7 +2916,8 @@ export class App {
       // Mercado desactivado temporalmente:
       // { name: 'markets', task: runGuarded('markets', () => this.loadMarkets()) },
       // { name: 'predictions', task: runGuarded('predictions', () => this.loadPredictions()) },
-      { name: 'pizzint', task: runGuarded('pizzint', () => this.loadPizzInt()) },
+      // PizzINT desactivado temporalmente:
+      // { name: 'pizzint', task: runGuarded('pizzint', () => this.loadPizzInt()) },
       // Panel desactivado temporalmente:
       // { name: 'fred', task: runGuarded('fred', () => this.loadFredData()) },
       // { name: 'oil', task: runGuarded('oil', () => this.loadOilAnalytics()) },
@@ -4361,7 +4362,8 @@ export class App {
     // Mercado desactivado temporalmente:
     // this.scheduleRefresh('markets', () => this.loadMarkets(), REFRESH_INTERVALS.markets);
     // this.scheduleRefresh('predictions', () => this.loadPredictions(), REFRESH_INTERVALS.predictions);
-    this.scheduleRefresh('pizzint', () => this.loadPizzInt(), 10 * 60 * 1000);
+    // PizzINT desactivado temporalmente:
+    // this.scheduleRefresh('pizzint', () => this.loadPizzInt(), 10 * 60 * 1000);
 
     // Only refresh layer data if layer is enabled
     this.scheduleRefresh('natural', () => this.loadNatural(), 5 * 60 * 1000, () => this.mapLayers.natural);

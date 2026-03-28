@@ -145,11 +145,40 @@ function youtubeLivePlugin(): Plugin {
         }
 
         try {
-          // Use YouTube's oEmbed to check if a video is valid/live
-          // For now, return null to use fallback - will implement proper detection later
+          const channelHandle = channel.startsWith('@') ? channel : `@${channel}`;
+          const liveUrl = `https://www.youtube.com/${channelHandle}/live`;
+          const response = await fetch(liveUrl, {
+            headers: {
+              'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+            },
+            redirect: 'follow',
+          });
+
+          if (!response.ok) {
+            res.setHeader('Content-Type', 'application/json');
+            res.setHeader('Cache-Control', 'public, max-age=60');
+            res.end(JSON.stringify({ videoId: null, isLive: false, channel }));
+            return;
+          }
+
+          const html = await response.text();
+          const finalUrl = response.url ? new URL(response.url) : null;
+          const redirectedVideoId = finalUrl?.searchParams.get('v') || null;
+          const validRedirectedId = redirectedVideoId && /^[A-Za-z0-9_-]{11}$/.test(redirectedVideoId)
+            ? redirectedVideoId
+            : null;
+          const videoIdMatch = html.match(/"videoId":"([a-zA-Z0-9_-]{11})"/);
+          const isLiveMatch = /"isLive":\s*true/.test(html) || /"isLiveNow":\s*true/.test(html);
+          const videoId = validRedirectedId || videoIdMatch?.[1] || null;
+          const isLive = Boolean(validRedirectedId || (isLiveMatch && videoId));
+
           res.setHeader('Content-Type', 'application/json');
           res.setHeader('Cache-Control', 'public, max-age=300');
-          res.end(JSON.stringify({ videoId: null, channel }));
+          res.end(JSON.stringify({
+            videoId: isLive ? videoId : null,
+            isLive,
+            channel,
+          }));
         } catch (error) {
           console.error(`[YouTube Live] Error:`, error);
           res.statusCode = 500;

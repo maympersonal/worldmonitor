@@ -32,6 +32,10 @@ function sanitizeOrigin(raw) {
   return 'https://worldmonitor.app';
 }
 
+function isLocalDevOrigin(origin) {
+  return /^https?:\/\/(?:localhost|127\.0\.0\.1)(?::\d+)?$/i.test(origin);
+}
+
 export default async function handler(request) {
   const url = new URL(request.url);
   const videoId = sanitizeVideoId(url.searchParams.get('videoId'));
@@ -47,8 +51,11 @@ export default async function handler(request) {
   const mute = parseFlag(url.searchParams.get('mute'), '1');
 
   const origin = sanitizeOrigin(url.searchParams.get('origin'));
+  const youtubeHost = isLocalDevOrigin(origin)
+    ? 'https://www.youtube.com'
+    : 'https://www.youtube-nocookie.com';
 
-  const embedSrc = new URL(`https://www.youtube-nocookie.com/embed/${videoId}`);
+  const embedSrc = new URL(`${youtubeHost}/embed/${videoId}`);
   embedSrc.searchParams.set('autoplay', autoplay);
   embedSrc.searchParams.set('mute', mute);
   embedSrc.searchParams.set('playsinline', '1');
@@ -84,7 +91,7 @@ export default async function handler(request) {
     function onYouTubeIframeAPIReady(){
       player=new YT.Player('player',{
         videoId:'${videoId}',
-        host:'https://www.youtube-nocookie.com',
+        host:'${youtubeHost}',
         playerVars:{autoplay:${autoplay},mute:${mute},playsinline:1,rel:0,controls:1,modestbranding:1,enablejsapi:1,origin:${JSON.stringify(origin)},widget_referrer:${JSON.stringify(origin)}},
         events:{
           onReady:function(){

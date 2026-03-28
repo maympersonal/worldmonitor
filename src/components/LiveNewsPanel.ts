@@ -122,10 +122,42 @@ export class LiveNewsPanel extends Panel {
     try { return new URL(getRemoteApiBaseUrl()).origin; } catch { return 'https://worldmonitor.app'; }
   }
 
+  private get embedFrameOrigin(): string {
+    if (this.desktopEmbedIframe?.src) {
+      try {
+        return new URL(this.desktopEmbedIframe.src).origin;
+      } catch {
+        // Ignore malformed iframe src values and fall back to configured origin.
+      }
+    }
+    return this.embedOrigin;
+  }
+
+  private get embedRequestOrigin(): string {
+    if (this.youtubeOrigin) return this.youtubeOrigin;
+    try {
+      return window.location.origin;
+    } catch {
+      return this.embedOrigin;
+    }
+  }
+
+  private usesLocalDevOrigin(origin: string): boolean {
+    return /^https?:\/\/(?:localhost|127\.0\.0\.1)(?::\d+)?$/i.test(origin);
+  }
+
+  private originFromUrl(url: string, fallback: string): string {
+    try {
+      return new URL(url).origin;
+    } catch {
+      return fallback;
+    }
+  }
+
   private setupBridgeMessageListener(): void {
     this.boundMessageHandler = (e: MessageEvent) => {
       if (e.source !== this.desktopEmbedIframe?.contentWindow) return;
-      const expected = this.embedOrigin;
+      const expected = this.embedFrameOrigin;
       if (e.origin !== expected && e.origin !== 'http://127.0.0.1:46123') return;
       const msg = e.data;
       if (!msg || typeof msg !== 'object' || !msg.type) return;
@@ -421,7 +453,7 @@ export class LiveNewsPanel extends Panel {
 
   private postToEmbed(msg: Record<string, unknown>): void {
     if (!this.desktopEmbedIframe?.contentWindow) return;
-    this.desktopEmbedIframe.contentWindow.postMessage(msg, this.embedOrigin);
+    this.desktopEmbedIframe.contentWindow.postMessage(msg, this.embedFrameOrigin);
   }
 
   private syncDesktopEmbedState(): void {
@@ -465,7 +497,8 @@ export class LiveNewsPanel extends Panel {
     // Always use cloud URL for iframe embeds — the local sidecar requires
     // an Authorization header that iframe src requests cannot carry.
     const remoteBase = getRemoteApiBaseUrl();
-    const embedUrl = `${remoteBase}${this.buildDesktopEmbedPath(videoId)}`;
+    const remoteOrigin = this.originFromUrl(remoteBase, this.embedRequestOrigin);
+    const embedUrl = `${remoteBase}${this.buildDesktopEmbedPath(videoId, remoteOrigin)}`;
 
     if (renderToken !== this.desktopEmbedRenderToken) {
       return;
@@ -556,8 +589,12 @@ export class LiveNewsPanel extends Panel {
     await LiveNewsPanel.loadYouTubeApi();
     if (this.player || !this.playerElement || !window.YT?.Player) return;
 
+    const playerHost = this.usesLocalDevOrigin(this.embedRequestOrigin)
+      ? 'https://www.youtube.com'
+      : 'https://www.youtube-nocookie.com';
+
     this.player = new window.YT!.Player(this.playerElement, {
-      host: 'https://www.youtube-nocookie.com',
+      host: playerHost,
       videoId: this.activeChannel.videoId,
       playerVars: {
         autoplay: this.isPlaying ? 1 : 0,

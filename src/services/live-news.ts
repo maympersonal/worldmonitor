@@ -1,10 +1,14 @@
 const liveVideoCache = new Map<string, { videoId: string | null; timestamp: number }>();
-const CACHE_TTL = 5 * 60 * 1000; // 5 minutes
+const LIVE_CACHE_TTL = 5 * 60 * 1000; // 5 minutes for positive detections
+const MISS_CACHE_TTL = 30 * 1000; // 30s for null results to retry quickly
 
 export async function fetchLiveVideoId(channelHandle: string): Promise<string | null> {
   const cached = liveVideoCache.get(channelHandle);
-  if (cached && Date.now() - cached.timestamp < CACHE_TTL) {
-    return cached.videoId;
+  if (cached) {
+    const ttl = cached.videoId ? LIVE_CACHE_TTL : MISS_CACHE_TTL;
+    if (Date.now() - cached.timestamp < ttl) {
+      return cached.videoId;
+    }
   }
 
   try {
@@ -21,4 +25,3 @@ export async function fetchLiveVideoId(channelHandle: string): Promise<string | 
     return null;
   }
 }
-

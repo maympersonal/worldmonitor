@@ -43,13 +43,20 @@ export default async function handler(request) {
     }
 
     const html = await response.text();
+    const finalUrl = response.url ? new URL(response.url) : null;
+    const redirectedVideoId = finalUrl?.searchParams.get('v') || null;
+    const validRedirectedId = redirectedVideoId && /^[A-Za-z0-9_-]{11}$/.test(redirectedVideoId)
+      ? redirectedVideoId
+      : null;
 
     // Extract video ID from the page
     const videoIdMatch = html.match(/"videoId":"([a-zA-Z0-9_-]{11})"/);
-    const isLiveMatch = html.match(/"isLive":\s*true/);
+    const isLiveMatch = /"isLive":\s*true/.test(html) || /"isLiveNow":\s*true/.test(html);
+    const detectedVideoId = validRedirectedId || videoIdMatch?.[1] || null;
+    const isLive = Boolean(validRedirectedId || (isLiveMatch && detectedVideoId));
 
-    if (videoIdMatch && isLiveMatch) {
-      return new Response(JSON.stringify({ videoId: videoIdMatch[1], isLive: true }), {
+    if (detectedVideoId && isLive) {
+      return new Response(JSON.stringify({ videoId: detectedVideoId, isLive: true }), {
         status: 200,
         headers: {
           'Content-Type': 'application/json',
