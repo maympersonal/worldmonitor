@@ -9,7 +9,10 @@ const CACHE_TTL_SECONDS = 10 * 60;
 const CACHE_TTL_MS = CACHE_TTL_SECONDS * 1000;
 const RESPONSE_CACHE_CONTROL = 'public, max-age=300, s-maxage=300, stale-while-revalidate=120';
 const RETRYABLE_STATUSES = new Set([500, 502, 503, 504]);
-const GDELT_TIMEOUT_MS = 10_000;
+const GDELT_TIMEOUT_MS = 18_000;
+const TRANSIENT_FAILURE_STATUSES = new Set([500, 502, 503, 504]);
+const DEGRADED_CACHE_CONTROL = 'public, max-age=30, s-maxage=30, stale-while-revalidate=30';
+const RELAXED_MAX_RECORDS = 6;
 
 // ─── Rate limiting ────────────────────────────────────────────────────────────
 // GDELT Doc public endpoint no tolera más de ~1 req/5s.
@@ -69,6 +72,92 @@ function toErrorMessage(error) {
   return String(error || 'unknown error');
 }
 
+function normalizeQueryWhitespace(value) {
+  return value.replace(/\s+/g, ' ').trim();
+}
+
+function stripSourceLangFilters(value) {
+  return normalizeQueryWhitespace(value.replace(/\bsourcelang:[a-z-]+\b/gi, ''));
+}
+
+function splitOrTerms(value) {
+  return value
+    .split(/\s+OR\s+/i)
+    .map(part => part.trim())
+    .filter(Boolean);
+}
+
+function getRelaxedTimespan(timespan) {
+  if (timespan === '72h') return '48h';
+  if (timespan === '48h') return '24h';
+  return timespan;
+}
+
+function buildRelaxedQuery(rawQuery) {
+  const cleaned = stripSourceLangFilters(rawQuery);
+  if (!cleaned) return null;
+
+  const groups = [...cleaned.matchAll(/\(([^()]+)\)/g)]
+    .map(match => (match[1] || '').trim())
+    .filter(Boolean);
+
+  if (groups.length >= 2) {
+    const locationGroup = groups[0];
+    const termsGroup = groups[1];
+    const trimmedTerms = splitOrTerms(termsGroup).slice(0, 3);
+    if (trimmedTerms.length > 0) {
+      return normalizeQueryWhitespace(`(${locationGroup}) (${trimmedTerms.join(' OR ')})`);
+    }
+  }
+
+  const trimmedTopLevelTerms = splitOrTerms(cleaned).slice(0, 3);
+  if (trimmedTopLevelTerms.length > 0) {
+    return normalizeQueryWhitespace(trimmedTopLevelTerms.join(' OR '));
+  }
+
+  return cleaned;
+}
+
+function shouldRetryWithRelaxedQuery(error) {
+  const status = getErrorStatus(error);
+  if (status === null) return true;
+  return TRANSIENT_FAILURE_STATUSES.has(status);
+}
+
+function buildGdeltDocUrl(query, maxrecords, timespan) {
+  const gdeltUrl = new URL('https://api.gdeltproject.org/api/v2/doc/doc');
+  gdeltUrl.searchParams.set('query', query);
+  gdeltUrl.searchParams.set('mode', 'artlist');
+  gdeltUrl.searchParams.set('maxrecords', maxrecords.toString());
+  gdeltUrl.searchParams.set('format', 'json');
+  gdeltUrl.searchParams.set('sort', 'date');
+  gdeltUrl.searchParams.set('timespan', timespan);
+  return gdeltUrl;
+}
+
+function mapArticles(data) {
+  return (data.articles || []).map(article => ({
+    title: article.title,
+    url: article.url,
+    source: article.domain || article.source?.domain,
+    date: article.seendate,
+    image: article.socialimage,
+    language: article.language,
+    tone: article.tone,
+  }));
+}
+
+function buildDegradedPayload(query, reason, upstreamStatus = null) {
+  return {
+    articles: [],
+    query,
+    degraded: true,
+    reason,
+    upstreamStatus,
+    cached_at: new Date().toISOString(),
+  };
+}
+
 function getFallback(key) {
   const entry = fallbackCache.get(key);
   if (!entry) return null;
@@ -103,12 +192,12 @@ async function fetchJsonWithTimeout(url, timeoutMs = GDELT_TIMEOUT_MS) {
   }
 }
 
-async function fetchWithRetry(url) {
+async function fetchWithRetry(url, timeoutMs = GDELT_TIMEOUT_MS) {
   let lastError = null;
 
   for (let attempt = 1; attempt <= 2; attempt += 1) {
     try {
-      const response = await fetchJsonWithTimeout(url);
+      const response = await fetchJsonWithTimeout(url, timeoutMs);
       if (!RETRYABLE_STATUSES.has(response.status) || attempt === 2) {
         return response;
       }
@@ -125,6 +214,51 @@ async function fetchWithRetry(url) {
   }
 
   throw lastError instanceof Error ? lastError : new Error('GDELT fetch failed');
+}
+
+async function fetchFromUpstream(query, maxrecords, timespan, timeoutMs = GDELT_TIMEOUT_MS) {
+  const gdeltUrl = buildGdeltDocUrl(query, maxrecords, timespan);
+
+  // Track timestamp right before hitting upstream for proactive throttle.
+  lastGdeltRequestTime = Date.now();
+
+  const response = await fetchWithRetry(gdeltUrl.toString(), timeoutMs);
+
+  if (response.status === 429) {
+    rateLimitedUntil = Date.now() + GDELT_RATE_LIMIT_WINDOW_MS;
+    const bodyText = await response.text();
+    console.warn('[GDELT DOC] Upstream rate limited request', {
+      query,
+      retryAfterSeconds: GDELT_RATE_LIMIT_WINDOW_MS / 1000,
+      bodyPreview: bodyText.slice(0, 200),
+    });
+    throw createHttpError(429, GDELT_RATE_LIMIT_MESSAGE, bodyText.slice(0, 500));
+  }
+
+  if (!response.ok) {
+    const errorText = await response.text();
+    console.error('[GDELT DOC] Upstream request failed', {
+      url: gdeltUrl.toString(),
+      status: response.status,
+      bodyPreview: errorText.slice(0, 500),
+    });
+    throw createHttpError(response.status, `GDELT returned ${response.status}`, errorText.slice(0, 500));
+  }
+
+  const contentType = response.headers.get('content-type') || '';
+  if (!isJsonContentType(contentType)) {
+    const bodyText = await response.text();
+    console.error('[GDELT DOC] Unexpected upstream content type', {
+      url: gdeltUrl.toString(),
+      contentType,
+      bodyPreview: bodyText.slice(0, 500),
+    });
+    throw createHttpError(502, `Unexpected GDELT content-type: ${contentType || 'unknown'}`, bodyText.slice(0, 500));
+  }
+
+  const data = await response.json();
+  const articles = mapArticles(data);
+  return { articles, query, cached_at: new Date().toISOString() };
 }
 
 // ─── Handler ──────────────────────────────────────────────────────────────────
@@ -238,65 +372,14 @@ export default async function handler(req) {
   // ───────────────────────────────────────────────────────────────────────────
 
   try {
-    const gdeltUrl = new URL('https://api.gdeltproject.org/api/v2/doc/doc');
-    gdeltUrl.searchParams.set('query', query);
-    gdeltUrl.searchParams.set('mode', 'artlist');
-    gdeltUrl.searchParams.set('maxrecords', maxrecords.toString());
-    gdeltUrl.searchParams.set('format', 'json');
-    gdeltUrl.searchParams.set('sort', 'date');
-    gdeltUrl.searchParams.set('timespan', timespan);
+    let result = await fetchFromUpstream(query, maxrecords, timespan, GDELT_TIMEOUT_MS);
 
-    // ─── NUEVO: registrar timestamp justo antes de disparar ─────────────────
-    lastGdeltRequestTime = Date.now();
-    // ────────────────────────────────────────────────────────────────────────
-
-    const response = await fetchWithRetry(gdeltUrl.toString());
-
-    if (response.status === 429) {
-      rateLimitedUntil = Date.now() + GDELT_RATE_LIMIT_WINDOW_MS;
-      const bodyText = await response.text();
-      console.warn('[GDELT DOC] Upstream rate limited request', {
-        query,
-        retryAfterSeconds: GDELT_RATE_LIMIT_WINDOW_MS / 1000,
-        bodyPreview: bodyText.slice(0, 200),
-      });
-      throw createHttpError(429, GDELT_RATE_LIMIT_MESSAGE, bodyText.slice(0, 500));
+    // Real recovery path: if upstream transiently fails with complex queries,
+    // retry with a simplified query that executes faster.
+    if (result.articles.length === 0) {
+      // Keep empty successful responses as-is; they are valid upstream answers.
     }
 
-    if (!response.ok) {
-      const errorText = await response.text();
-      console.error('[GDELT DOC] Upstream request failed', {
-        url: gdeltUrl.toString(),
-        status: response.status,
-        bodyPreview: errorText.slice(0, 500),
-      });
-      throw createHttpError(response.status, `GDELT returned ${response.status}`, errorText.slice(0, 500));
-    }
-
-    const contentType = response.headers.get('content-type') || '';
-    if (!isJsonContentType(contentType)) {
-      const bodyText = await response.text();
-      console.error('[GDELT DOC] Unexpected upstream content type', {
-        url: gdeltUrl.toString(),
-        contentType,
-        bodyPreview: bodyText.slice(0, 500),
-      });
-      throw createHttpError(502, `Unexpected GDELT content-type: ${contentType || 'unknown'}`, bodyText.slice(0, 500));
-    }
-
-    const data = await response.json();
-
-    const articles = (data.articles || []).map(article => ({
-      title: article.title,
-      url: article.url,
-      source: article.domain || article.source?.domain,
-      date: article.seendate,
-      image: article.socialimage,
-      language: article.language,
-      tone: article.tone,
-    }));
-
-    const result = { articles, query, cached_at: new Date().toISOString() };
     setFallback(cacheKey, result);
     void setCachedJson(cacheKey, result, CACHE_TTL_SECONDS);
     recordCacheTelemetry('/api/gdelt-doc', 'MISS');
@@ -310,7 +393,46 @@ export default async function handler(req) {
         'X-Cache': 'MISS',
       },
     });
-  } catch (error) {
+  } catch (primaryError) {
+    let error = primaryError;
+
+    if (shouldRetryWithRelaxedQuery(primaryError)) {
+      const relaxedQuery = buildRelaxedQuery(query);
+      if (relaxedQuery && relaxedQuery !== query) {
+        try {
+          const relaxedTimespan = getRelaxedTimespan(timespan);
+          const relaxedResult = await fetchFromUpstream(
+            relaxedQuery,
+            Math.min(maxrecords, RELAXED_MAX_RECORDS),
+            relaxedTimespan,
+            GDELT_TIMEOUT_MS,
+          );
+          const result = {
+            ...relaxedResult,
+            query,
+            query_relaxed_from: query,
+            query_relaxed_to: relaxedQuery,
+            timespan_relaxed_to: relaxedTimespan,
+          };
+          setFallback(cacheKey, result);
+          void setCachedJson(cacheKey, result, CACHE_TTL_SECONDS);
+          recordCacheTelemetry('/api/gdelt-doc', 'MISS');
+
+          return new Response(JSON.stringify(result), {
+            status: 200,
+            headers: {
+              'Content-Type': 'application/json',
+              ...cors,
+              'Cache-Control': RESPONSE_CACHE_CONTROL,
+              'X-Cache': 'MISS-RELAXED',
+            },
+          });
+        } catch (relaxedError) {
+          error = relaxedError;
+        }
+      }
+    }
+
     const stale = getFallback(cacheKey);
     if (stale) {
       recordCacheTelemetry('/api/gdelt-doc', 'STALE');
@@ -334,6 +456,20 @@ export default async function handler(req) {
         headers: {
           'Content-Type': 'application/json',
           'Retry-After': String(retryAfterSeconds),
+          ...cors,
+        },
+      });
+    }
+
+    if (errorStatus === null || TRANSIENT_FAILURE_STATUSES.has(errorStatus)) {
+      recordCacheTelemetry('/api/gdelt-doc', 'ERROR');
+      const degradedPayload = buildDegradedPayload(query, toErrorMessage(error), errorStatus);
+      return new Response(JSON.stringify(degradedPayload), {
+        status: 200,
+        headers: {
+          'Content-Type': 'application/json',
+          'Cache-Control': DEGRADED_CACHE_CONTROL,
+          'X-Cache': 'DEGRADED',
           ...cors,
         },
       });

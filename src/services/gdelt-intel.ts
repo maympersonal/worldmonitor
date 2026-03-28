@@ -12,6 +12,13 @@ export interface GdeltArticle {
   tone?: number;
 }
 
+interface GdeltDocResponse {
+  articles?: GdeltArticle[];
+  degraded?: boolean;
+  reason?: string;
+  upstreamStatus?: number | null;
+}
+
 export interface IntelTopic {
   id: string;
   name: string;
@@ -110,9 +117,12 @@ export function getIntelTopics(): IntelTopic[] {
 
 const CACHE_TTL = 5 * 60 * 1000;
 const FAILURE_BACKOFF_MS = 30 * 1000;
+const GDELT_REQUEST_SPACING_MS = 5500;
 const articleCache = new Map<string, { articles: GdeltArticle[]; timestamp: number }>();
 const inFlightRequests = new Map<string, Promise<GdeltArticle[]>>();
 let globalCooldownUntil = 0;
+let requestQueue: Promise<unknown> = Promise.resolve();
+let lastRequestTimestamp = 0;
 
 function getRetryAfterSeconds(response: Response): number {
   const retryAfter = Number(response.headers.get('retry-after'));
@@ -121,6 +131,25 @@ function getRetryAfterSeconds(response: Response): number {
 
 function buildGdeltDocUrl(query: string, maxrecords = 10, timespan = '24h'): string {
   return `/api/gdelt-doc?query=${encodeURIComponent(query)}&maxrecords=${maxrecords}&timespan=${timespan}`;
+}
+
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+function scheduleGdeltRequest<T>(task: () => Promise<T>): Promise<T> {
+  const run = requestQueue.then(async () => {
+    const waitMs = Math.max(0, (lastRequestTimestamp + GDELT_REQUEST_SPACING_MS) - Date.now());
+    if (waitMs > 0) {
+      await sleep(waitMs);
+    }
+    lastRequestTimestamp = Date.now();
+    return task();
+  });
+
+  // Keep queue alive even if one request fails.
+  requestQueue = run.then(() => undefined, () => undefined);
+  return run;
 }
 
 export async function fetchGdeltArticles(
@@ -147,21 +176,31 @@ export async function fetchGdeltArticles(
   const request = (async () => {
     try {
       const url = buildGdeltDocUrl(query, maxrecords, timespan);
-      const response = await fetchWithProxy(url);
+      const response = await scheduleGdeltRequest(() => fetchWithProxy(url));
 
       if (!response.ok) {
-        if (response.status === 429) {
+        if (response.status === 429 || response.status >= 500) {
           const retryAfterSeconds = getRetryAfterSeconds(response);
           globalCooldownUntil = Date.now() + Math.max(retryAfterSeconds * 1000, FAILURE_BACKOFF_MS);
-          console.warn(`[GDELT-Intel] Rate limited for ${retryAfterSeconds}s`);
+          if (response.status === 429) {
+            console.warn(`[GDELT-Intel] Rate limited for ${retryAfterSeconds}s`);
+          } else {
+            console.warn(`[GDELT-Intel] Upstream unavailable (${response.status}), backing off for ${retryAfterSeconds}s`);
+          }
         } else {
           console.warn(`[GDELT-Intel] Failed to fetch: ${response.status}`);
         }
         return cached?.articles || [];
       }
 
-      const data = await response.json();
+      const data = await response.json() as GdeltDocResponse;
       const articles: GdeltArticle[] = data.articles || [];
+
+      if (data.degraded) {
+        globalCooldownUntil = Date.now() + FAILURE_BACKOFF_MS;
+        console.warn(`[GDELT-Intel] Degraded response${data.reason ? `: ${data.reason}` : ''}`);
+        return cached?.articles || articles;
+      }
 
       globalCooldownUntil = 0;
       articleCache.set(cacheKey, { articles, timestamp: Date.now() });
