@@ -10,6 +10,7 @@ const RSS_HEADERS = {
 const MAX_REDIRECTS = 5;
 const MAX_RETRIES = 2;
 const RETRYABLE_STATUSES = new Set([429, 500, 502, 503, 504]);
+const RELAY_FALLBACK_STATUSES = new Set([403, 429, 500, 502, 503, 504]);
 const FEED_SNAPSHOT_TTL_MS = 30 * 60 * 1000;
 const BLOCKED_FEED_COOLDOWN_MS = 6 * 60 * 60 * 1000;
 const feedSnapshots = new Map();
@@ -59,6 +60,12 @@ function clearBlockedFeed(feedUrl) {
   blockedFeeds.delete(feedUrl);
 }
 
+function getRelayBaseUrl() {
+  const relayUrl = (process.env.WS_RELAY_URL || '').trim();
+  if (!relayUrl) return '';
+  return relayUrl.replace(/\/$/, '');
+}
+
 function buildRequestHeaders(feedUrl, snapshot = null) {
   const parsed = new URL(feedUrl);
   const origin = `${parsed.protocol}//${parsed.host}`;
@@ -102,6 +109,34 @@ function buildSnapshotResponse(snapshot, corsHeaders, extraHeaders = {}) {
       ...corsHeaders,
     },
   });
+}
+
+async function fetchRelayFallback(feedUrl, timeoutMs) {
+  const relayBaseUrl = getRelayBaseUrl();
+  if (!relayBaseUrl) return null;
+
+  const relayUrl = `${relayBaseUrl}/rss?url=${encodeURIComponent(feedUrl)}`;
+
+  try {
+    const response = await fetchWithTimeout(relayUrl, {
+      headers: buildRequestHeaders(feedUrl),
+      redirect: 'follow',
+    }, Math.min(timeoutMs + 5000, 25000));
+
+    if (!response.ok) {
+      return null;
+    }
+
+    const body = await response.text();
+    const contentType = response.headers.get('content-type') || 'application/xml';
+    if (!looksLikeXml(contentType, body)) {
+      return null;
+    }
+
+    return { body, contentType };
+  } catch {
+    return null;
+  }
 }
 
 // Fetch with timeout
@@ -423,8 +458,40 @@ export default async function handler(req) {
         bodyPreview: details,
       });
 
+      if (RELAY_FALLBACK_STATUSES.has(upstreamStatus)) {
+        const relayResult = await fetchRelayFallback(feedUrl, timeout);
+        if (relayResult) {
+          clearBlockedFeed(feedUrl);
+          setFeedSnapshot(feedUrl, {
+            body: relayResult.body,
+            contentType: relayResult.contentType,
+            etag: '',
+            lastModified: '',
+          });
+
+          return new Response(relayResult.body, {
+            status: 200,
+            headers: {
+              'Content-Type': relayResult.contentType,
+              'Cache-Control': 'public, max-age=300, s-maxage=300, stale-while-revalidate=60',
+              'X-RSS-Upstream': 'railway-relay',
+              'X-Feed-State': upstreamStatus === 403 ? 'relay-recovered-blocked' : 'relay-recovered',
+              ...corsHeaders,
+            },
+          });
+        }
+      }
+
       if (upstreamStatus === 403) {
         setBlockedFeed(feedUrl);
+      }
+
+      if (snapshot && (upstreamStatus === 403 || RETRYABLE_STATUSES.has(upstreamStatus))) {
+        return buildSnapshotResponse(snapshot, corsHeaders, {
+          'X-Feed-State': upstreamStatus === 403 ? 'blocked-stale' : 'stale',
+          'X-Upstream-Status': String(upstreamStatus),
+          ...(upstreamStatus === 403 ? { 'Retry-After': String(BLOCKED_FEED_COOLDOWN_MS / 1000) } : {}),
+        });
       }
 
       return new Response(JSON.stringify({

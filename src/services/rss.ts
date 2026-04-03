@@ -22,6 +22,21 @@ const AI_CLASSIFY_MAX_PER_FEED =
   SITE_VARIANT === 'finance' ? 2 : SITE_VARIANT === 'tech' ? 2 : 3;
 const aiRecentlyQueued = new Map<string, number>();
 const aiDispatches: number[] = [];
+const XML_BUILTIN_ENTITIES = new Set(['amp', 'lt', 'gt', 'quot', 'apos']);
+const HTML_ENTITY_TO_NUMERIC: Record<string, string> = {
+  nbsp: '&#160;',
+  ndash: '&#8211;',
+  mdash: '&#8212;',
+  hellip: '&#8230;',
+  lsquo: '&#8216;',
+  rsquo: '&#8217;',
+  ldquo: '&#8220;',
+  rdquo: '&#8221;',
+  copy: '&#169;',
+  reg: '&#174;',
+  trade: '&#8482;',
+  euro: '&#8364;',
+};
 
 function toSerializable(items: NewsItem[]): Array<Omit<NewsItem, 'pubDate'> & { pubDate: string }> {
   return items.map(item => ({ ...item, pubDate: item.pubDate.toISOString() }));
@@ -155,7 +170,50 @@ function shouldTryFallback(error: unknown): boolean {
   if (status === 403 || status === 429 || status === 502 || status === 503 || status === 504) {
     return true;
   }
+  if (isParseError(error)) {
+    return true;
+  }
   return isBlockedError(error);
+}
+
+function isParseError(error: unknown): boolean {
+  return Boolean(error && typeof error === 'object' && 'parseError' in error && error.parseError);
+}
+
+function sanitizeXmlForParser(xml: string): string {
+  let sanitized = xml
+    .replace(/^\uFEFF/, '')
+    .replace(/[\u0000-\u0008\u000B\u000C\u000E-\u001F\u007F]/g, '');
+
+  sanitized = sanitized.replace(/&([a-zA-Z][a-zA-Z0-9]+);/g, (entity, name) => {
+    const normalized = name.toLowerCase();
+    if (XML_BUILTIN_ENTITIES.has(normalized)) {
+      return entity;
+    }
+    return HTML_ENTITY_TO_NUMERIC[normalized] || `&amp;${name};`;
+  });
+
+  sanitized = sanitized.replace(/&(?!#\d+;|#x[0-9a-fA-F]+;|amp;|lt;|gt;|quot;|apos;)/g, '&amp;');
+
+  return sanitized;
+}
+
+function parseRssDocument(xml: string): { doc: Document; recovered: boolean } {
+  const parser = new DOMParser();
+  const doc = parser.parseFromString(xml, 'text/xml');
+  if (!doc.querySelector('parsererror')) {
+    return { doc, recovered: false };
+  }
+
+  const sanitized = sanitizeXmlForParser(xml);
+  if (sanitized !== xml) {
+    const recoveredDoc = parser.parseFromString(sanitized, 'text/xml');
+    if (!recoveredDoc.querySelector('parsererror')) {
+      return { doc: recoveredDoc, recovered: true };
+    }
+  }
+
+  return { doc, recovered: false };
 }
 
 export async function fetchFeed(feed: Feed): Promise<NewsItem[]> {
@@ -188,16 +246,20 @@ export async function fetchFeed(feed: Feed): Promise<NewsItem[]> {
 
         const contentType = (response.headers.get('content-type') || '').toLowerCase();
         const text = await response.text();
-        const parser = new DOMParser();
-        const doc = parser.parseFromString(text, 'text/xml');
+        const { doc, recovered } = parseRssDocument(text);
 
         const parseError = doc.querySelector('parsererror');
         if (parseError) {
           const parseFailure = new Error(`Parse error (${contentType || 'unknown content type'})`);
           Object.assign(parseFailure, {
             blocked: contentType.includes('html'),
+            parseError: true,
           });
           throw parseFailure;
+        }
+
+        if (recovered) {
+          console.info(`[RSS] ${feed.name} recovered malformed XML via sanitizer`);
         }
 
         let items = doc.querySelectorAll('item');

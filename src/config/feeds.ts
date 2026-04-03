@@ -429,7 +429,11 @@ const FULL_FEEDS: Record<string, Feed[]> = {
     { name: 'CDC', url: rss('https://news.google.com/rss/search?q=site:cdc.gov+OR+CDC+health&hl=en-US&gl=US&ceid=US:en') },
     { name: 'FEMA', url: rss('https://news.google.com/rss/search?q=site:fema.gov+OR+FEMA+emergency&hl=en-US&gl=US&ceid=US:en') },
     { name: 'DHS', url: rss('https://news.google.com/rss/search?q=site:dhs.gov+OR+"Homeland+Security"&hl=en-US&gl=US&ceid=US:en') },
-    { name: 'UN News', url: railwayRss('https://news.un.org/feed/subscribe/en/news/all/rss.xml') },
+    {
+      name: 'UN News',
+      url: railwayRss('https://news.un.org/feed/subscribe/en/news/all/rss.xml'),
+      fallbackUrls: [googleNewsRss('site:news.un.org+when:7d')],
+    },
     { name: 'CISA', url: railwayRss('https://www.cisa.gov/cybersecurity-advisories/all.xml') },
   ],
   layoffs: [
@@ -447,7 +451,11 @@ const FULL_FEEDS: Record<string, Feed[]> = {
     { name: 'Carnegie', url: rss('https://news.google.com/rss/search?q=site:carnegieendowment.org+when:7d&hl=en-US&gl=US&ceid=US:en') },
     // New verified think tank feeds
     // War on the Rocks - Defense and national security analysis
-    { name: 'War on the Rocks', url: rss('https://warontherocks.com/feed') },
+    {
+      name: 'War on the Rocks',
+      url: rss('https://warontherocks.com/feed'),
+      fallbackUrls: [googleNewsRss('site:warontherocks.com+when:7d')],
+    },
     // AEI - American Enterprise Institute (US conservative think tank)
     { name: 'AEI', url: rss('https://www.aei.org/feed/') },
     // Responsible Statecraft - Foreign policy analysis (Quincy Institute)
@@ -517,7 +525,11 @@ const FULL_FEEDS: Record<string, Feed[]> = {
     { name: 'Mining & Resources', url: rss('https://news.google.com/rss/search?q=(lithium+OR+"rare+earth"+OR+cobalt+OR+mining)+when:3d&hl=en-US&gl=US&ceid=US:en') },
   ],
   cuba: [
-    { name: 'Cubadebate', url: rss('https://www.cubadebate.cu/feed') },
+    {
+      name: 'Cubadebate',
+      url: railwayRss('https://www.cubadebate.cu/feed'),
+      fallbackUrls: [googleNewsRss('(site:cubadebate.cu+OR+"Cubadebate")+when:3d', 'es-419', 'US', 'US:es-419')],
+    },
     { name: 'Granma', url: rss('https://www.granma.cu/feed') },
     { name: 'JuventudRevelde', url: rss('https://www.juventudrebelde.cu/get/rss/grupo/generales') },
     { name: 'Trabajadores', url: rss('https://www.juventudrebelde.cu/get/rss/grupo/generales') },
@@ -895,7 +907,13 @@ export const INTEL_SOURCES: Feed[] = [
 
   // Economic & Food Security (Tier 2)
   { name: 'FAO News', url: rss('https://www.fao.org/feeds/fao-newsroom-rss'), type: 'economic' },
-  { name: 'FAO GIEWS', url: rss('https://www.fao.org/giews/english/shortnews/rss.xml'), type: 'economic' },
+  {
+    // Historical GIEWS RSS endpoint now redirects to HTML (/giews/en/) and breaks XML parsing.
+    name: 'FAO GIEWS',
+    url: googleNewsRss('(site:fao.org+giews+OR+"FAO+GIEWS"+OR+"Global+Information+and+Early+Warning+System")+when:14d'),
+    fallbackUrls: [rss('https://www.fao.org/feeds/fao-newsroom-rss')],
+    type: 'economic',
+  },
   { name: 'EU ISS', url: rss('https://news.google.com/rss/search?q=site:iss.europa.eu+when:7d&hl=en-US&gl=US&ceid=US:en'), type: 'intl' },
 ];
 

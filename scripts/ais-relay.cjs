@@ -1087,6 +1087,14 @@ const server = http.createServer(async (req, res) => {
         'www.iaea.org',
         'www.who.int',
         'www.crisisgroup.org',
+        // Feeds routed via railwayRss() in src/config/feeds.ts
+        'breakingdefense.com',
+        'www.nti.org',
+        'www.lasillavacia.com',
+        'www.prensalatina.cu',
+        'www.cubadebate.cu',
+        'cubadebate.cu',
+        'rsshub.app',
         // Middle East & Regional News
         'english.alarabiya.net',
         'www.arabnews.com',
