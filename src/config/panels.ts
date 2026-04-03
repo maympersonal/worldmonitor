@@ -20,6 +20,7 @@ const FULL_PANELS: Record<string, PanelConfig> = {
   middleeast: { name: 'Middle East', enabled: true, priority: 1 },
   africa: { name: 'Africa', enabled: true, priority: 1 },
   latam: { name: 'Latin America', enabled: true, priority: 1 },
+  cuba: { name: 'Cuba', enabled: true, priority: 1 },
   asia: { name: 'Asia-Pacific', enabled: true, priority: 1 },
   energy: { name: 'Energy & Resources', enabled: true, priority: 1 },
   gov: { name: 'Government', enabled: true, priority: 1 },

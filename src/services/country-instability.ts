@@ -116,6 +116,7 @@ const COUNTRY_KEYWORDS: Record<string, string[]> = {
   VE: ['venezuela', 'caracas', 'maduro'],
   BR: ['brazil', 'brasilia', 'lula', 'bolsonaro'],
   AE: ['uae', 'emirates', 'dubai', 'abu dhabi'],
+  CU: ['cuba', 'havana', 'habana', 'la habana', 'diaz canel','cuban', 'cuban republic','cubano', 'republica de cuba'],
 };
 
 // Geopolitical baseline risk scores (0-50)
@@ -143,6 +144,7 @@ const BASELINE_RISK: Record<string, number> = {
   VE: 40,   // Economic collapse, authoritarian
   BR: 15,   // Large democracy, social tensions, Amazon deforestation
   AE: 10,   // Stable, regional hub, low internal unrest
+  CU: 35,   
 };
 
 // Event significance multipliers
@@ -171,6 +173,7 @@ const EVENT_MULTIPLIER: Record<string, number> = {
   VE: 1.8,  // Suppressed
   BR: 0.6,  // Large democracy, many events
   AE: 1.5,  // Events rare, significant when occur
+  CU: 2.0,  // Events are less frequently reported and often politically significant
 };
 
 const countryDataMap = new Map<string, CountryData>();
@@ -248,6 +251,7 @@ const ISO3_TO_ISO2: Record<string, string> = {
   COD: 'CD', MMR: 'MM', YEM: 'YE', ETH: 'ET', VEN: 'VE', IRQ: 'IQ',
   COL: 'CO', NGA: 'NG', PSE: 'PS', TUR: 'TR', PAK: 'PK', IRN: 'IR',
   IND: 'IN', CHN: 'CN', RUS: 'RU', ISR: 'IL', SAU: 'SA', USA: 'US',
+  CUB: 'CU',
   TWN: 'TW', PRK: 'KP', POL: 'PL', DEU: 'DE', FRA: 'FR', GBR: 'GB',
 };
 
@@ -257,7 +261,7 @@ const COUNTRY_NAME_TO_ISO: Record<string, string> = {
   'Yemen': 'YE', 'Ethiopia': 'ET', 'Venezuela': 'VE', 'Iraq': 'IQ',
   'Colombia': 'CO', 'Nigeria': 'NG', 'Palestine': 'PS', 'Turkey': 'TR',
   'Pakistan': 'PK', 'Iran': 'IR', 'India': 'IN', 'China': 'CN',
-  'Russia': 'RU', 'Israel': 'IL', 'Saudi Arabia': 'SA',
+  'Russia': 'RU', 'Israel': 'IL', 'Saudi Arabia': 'SA', 'Cuba': 'CU',
 };
 
 export function ingestDisplacementForCII(countries: CountryDisplacement[]): void {
@@ -313,6 +317,7 @@ const COUNTRY_BOUNDS: Record<string, [number, number, number, number]> = {
   IN: [6, 36, 68, 97],       // India
   CN: [18, 54, 73, 135],     // China
   RU: [41, 82, 19, 180],     // Russia (simplified)
+  CU: [19, 24, -86, -74],    // Cuba
 };
 const LOCATION_COUNTRY_CANDIDATES = Object.keys(TIER1_COUNTRIES);
 

@@ -21,7 +21,7 @@ const TIER1_COUNTRIES = {
   US: 'United States', RU: 'Russia', CN: 'China', UA: 'Ukraine', IR: 'Iran',
   IL: 'Israel', TW: 'Taiwan', KP: 'North Korea', SA: 'Saudi Arabia', TR: 'Turkey',
   PL: 'Poland', DE: 'Germany', FR: 'France', GB: 'United Kingdom', IN: 'India',
-  PK: 'Pakistan', SY: 'Syria', YE: 'Yemen', MM: 'Myanmar', VE: 'Venezuela',
+  PK: 'Pakistan', SY: 'Syria', YE: 'Yemen', MM: 'Myanmar', VE: 'Venezuela',CU: 'Cuba'
 };
 
 // Baseline geopolitical risk (0-50)
