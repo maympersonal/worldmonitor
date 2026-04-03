@@ -432,9 +432,20 @@ export class App {
 
   private async checkForUpdate(): Promise<void> {
     try {
-      const res = await fetch('https://worldmonitor.app/api/version');
-      if (!res.ok) return;
-      const data = await res.json();
+      let data: { version?: string; url?: string } | null = null;
+
+      for (const endpoint of this.getVersionCheckEndpoints()) {
+        try {
+          const res = await fetch(endpoint);
+          if (!res.ok) continue;
+          data = await res.json();
+          break;
+        } catch {
+          // Try next endpoint
+        }
+      }
+
+      if (!data) return;
       const remote = data.version as string;
       if (!remote) return;
 
@@ -449,6 +460,24 @@ export class App {
         : 'https://github.com/koala73/worldmonitor/releases/latest';
       await this.showUpdateBadge(remote, releaseUrl);
     } catch { /* silent */ }
+  }
+
+  private getVersionCheckEndpoints(): string[] {
+    const sameOriginEndpoint = '/api/version';
+    if (typeof window === 'undefined') return [sameOriginEndpoint];
+
+    const host = window.location.hostname;
+    const isLocalHost = host === 'localhost'
+      || host === '127.0.0.1'
+      || host === 'tauri.localhost'
+      || host.endsWith('.tauri.localhost');
+
+    if (isLocalHost) {
+      // Local dev may not run serverless routes; fallback to canonical production host.
+      return [sameOriginEndpoint, 'https://www.worldmonitor.app/api/version'];
+    }
+
+    return [sameOriginEndpoint];
   }
 
   private isNewerVersion(remote: string, current: string): boolean {
