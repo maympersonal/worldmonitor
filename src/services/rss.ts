@@ -22,6 +22,14 @@ const AI_CLASSIFY_MAX_PER_FEED =
   SITE_VARIANT === 'finance' ? 2 : SITE_VARIANT === 'tech' ? 2 : 3;
 const aiRecentlyQueued = new Map<string, number>();
 const aiDispatches: number[] = [];
+const DEBUG_FINANCE_FEED_NAMES = new Set([
+  'Cuba Economia',
+  'Cuba Economy (EN)',
+  'Cuba Moneda',
+  'Cuba Currency (EN)',
+  'Cuba Comercio Exterior',
+  'Cuba Foreign Trade (EN)',
+]);
 const XML_BUILTIN_ENTITIES = new Set(['amp', 'lt', 'gt', 'quot', 'apos']);
 const HTML_ENTITY_TO_NUMERIC: Record<string, string> = {
   nbsp: '&#160;',
@@ -198,6 +206,32 @@ function sanitizeXmlForParser(xml: string): string {
   return sanitized;
 }
 
+function decodeMaybe(value: string): string {
+  try {
+    return decodeURIComponent(value);
+  } catch {
+    return value;
+  }
+}
+
+function logFinanceFeedResults(feed: Feed, items: NewsItem[]): void {
+  if (!DEBUG_FINANCE_FEED_NAMES.has(feed.name)) return;
+
+  console.log(`[RSS][FinanceDebug] ${feed.name} -> ${items.length} items`);
+  console.log(`[RSS][FinanceDebug] ${feed.name} query: ${decodeMaybe(feed.url)}`);
+
+  if (items.length === 0) {
+    console.log(`[RSS][FinanceDebug] ${feed.name} returned no headlines`);
+    return;
+  }
+
+  items.slice(0, 5).forEach((item, index) => {
+    console.log(
+      `[RSS][FinanceDebug] ${feed.name} #${index + 1}: ${item.title} | ${item.link}`
+    );
+  });
+}
+
 function parseRssDocument(xml: string): { doc: Document; recovered: boolean } {
   const parser = new DOMParser();
   const doc = parser.parseFromString(xml, 'text/xml');
@@ -299,6 +333,13 @@ export async function fetchFeed(feed: Feed): Promise<NewsItem[]> {
             };
           });
 
+        // If this attempt yields no headlines, try configured fallbacks before
+        // accepting an empty result.
+        if (parsed.length === 0 && attemptIndex < attemptUrls.length - 1) {
+          console.warn(`[RSS] ${feed.name} returned no items, trying fallback ${attemptIndex + 1}/${attemptUrls.length - 1}`);
+          continue;
+        }
+
         if (isFallback) {
           console.info(`[RSS] ${feed.name} recovered via fallback source`);
         }
@@ -390,6 +431,11 @@ export async function fetchCategoryFeeds(
 
   for (const batch of batches) {
     const results = await Promise.all(batch.map(fetchFeed));
+    results.forEach((feedItems, index) => {
+      const feed = batch[index];
+      if (!feed) return;
+      logFinanceFeedResults(feed, feedItems);
+    });
     results.flat().forEach(insertTopItem);
     options.onBatch?.(ensureSortedDescending());
   }

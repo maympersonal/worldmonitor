@@ -394,11 +394,11 @@ export default defineConfig({
         },
       },
       // USGS Earthquake API
-      '/api/earthquake': {
+      '/api/earthquakes': {
         target: 'https://earthquake.usgs.gov',
         changeOrigin: true,
         timeout: 30000,
-        rewrite: (path) => path.replace(/^\/api\/earthquake/, ''),
+        rewrite: (path) => path.replace(/^\/api\/earthquakes/, ''),
         configure: (proxy) => {
           proxy.on('error', (err) => {
             console.log('Earthquake proxy error:', err.message);

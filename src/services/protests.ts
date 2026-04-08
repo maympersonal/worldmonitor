@@ -8,6 +8,7 @@ const ACLED_PROXY_URL = '/api/acled';
 
 // GDELT GEO 2.0 API - no auth required
 const GDELT_GEO_URL = '/api/gdelt-geo';
+const ENABLE_GDELT_GEO = false;
 
 const acledBreaker = createCircuitBreaker<SocialUnrestEvent[]>({ name: 'ACLED Protests' });
 const gdeltBreaker = createCircuitBreaker<SocialUnrestEvent[]>({
@@ -292,7 +293,8 @@ export async function fetchProtestEvents(): Promise<ProtestData> {
   // Fetch from both sources in parallel
   const [acledEvents, gdeltEvents] = await Promise.all([
     fetchAcledEvents(),
-    fetchGdeltEvents(),
+    // fetchGdeltEvents(), // Disabled to avoid /api/gdelt-geo errors
+    ENABLE_GDELT_GEO ? fetchGdeltEvents() : Promise.resolve([]),
   ]);
 
   console.log(`[Protests] Fetched ${acledEvents.length} ACLED, ${gdeltEvents.length} GDELT events`);

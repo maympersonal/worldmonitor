@@ -412,11 +412,108 @@ const FULL_FEEDS: Record<string, Feed[]> = {
     { name: 'ArXiv AI', url: rss('https://export.arxiv.org/rss/cs.AI') },
   ],
   finance: [
-    { name: 'CNBC', url: rss('https://www.cnbc.com/id/100003114/device/rss/rss.html') },
-    { name: 'MarketWatch', url: rss('https://news.google.com/rss/search?q=site:marketwatch.com+markets+when:1d&hl=en-US&gl=US&ceid=US:en') },
-    { name: 'Yahoo Finance', url: rss('https://finance.yahoo.com/news/rssindex') },
-    { name: 'Financial Times', url: rss('https://www.ft.com/rss/home') },
-    { name: 'Reuters Business', url: rss('https://news.google.com/rss/search?q=site:reuters.com+business+markets&hl=en-US&gl=US&ceid=US:en') },
+    {
+      name: 'Cuba Economia',
+      url: googleNewsRss(
+        '(Cuba OR Habana OR Havana) AND (economia OR finanzas OR comercio OR inversion OR inflacion OR deuda OR remesas OR economy OR finance OR trade OR investment) when:30d',
+        'es-419',
+        'US',
+        'US:es-419',
+      ),
+      fallbackUrls: [
+        googleNewsRss(
+          '(Cuba OR Habana OR Havana) AND (economia OR economy OR finanzas OR finance) when:365d',
+          'es-419',
+          'US',
+          'US:es-419',
+        ),
+      ],
+    },
+    {
+      name: 'Cuba Economy (EN)',
+      url: googleNewsRss(
+        '(Cuba OR Havana OR Habana) AND (economy OR finance OR trade OR investment OR inflation OR debt OR remittances OR economia OR finanzas OR comercio OR inversion) when:30d',
+        'en-US',
+        'US',
+        'US:en',
+      ),
+      fallbackUrls: [
+        googleNewsRss(
+          '(Cuba OR Havana OR Habana) AND (economy OR finance OR economia OR finanzas) when:365d',
+          'en-US',
+          'US',
+          'US:en',
+        ),
+      ],
+    },
+    {
+      name: 'Cuba Moneda',
+      url: googleNewsRss(
+        '(Cuba OR Habana OR Havana) AND (peso OR CUP OR MLC OR divisa OR moneda OR currency OR "tipo de cambio" OR "exchange rate") when:30d',
+        'es-419',
+        'US',
+        'US:es-419',
+      ),
+      fallbackUrls: [
+        googleNewsRss(
+          '(Cuba OR Habana OR Havana) AND (peso OR CUP OR MLC OR moneda OR currency) when:365d',
+          'es-419',
+          'US',
+          'US:es-419',
+        ),
+      ],
+    },
+    {
+      name: 'Cuba Currency (EN)',
+      url: googleNewsRss(
+        '(Cuba OR Havana OR Habana) AND (peso OR CUP OR MLC OR currency OR divisa OR moneda OR "exchange rate" OR "tipo de cambio") when:30d',
+        'en-US',
+        'US',
+        'US:en',
+      ),
+      fallbackUrls: [
+        googleNewsRss(
+          '(Cuba OR Havana OR Habana) AND (currency OR peso OR CUP OR MLC OR moneda) when:365d',
+          'en-US',
+          'US',
+          'US:en',
+        ),
+      ],
+    },
+    {
+      name: 'Cuba Comercio Exterior',
+      url: googleNewsRss(
+        '(Cuba OR Habana OR Havana) AND (exportaciones OR importaciones OR comercio OR inversiones OR exports OR imports OR trade OR investments) when:30d',
+        'es-419',
+        'US',
+        'US:es-419',
+      ),
+      fallbackUrls: [
+        googleNewsRss(
+          '(Cuba OR Habana OR Havana) AND (comercio OR trade OR exportaciones OR importaciones OR exports OR imports) when:365d',
+          'es-419',
+          'US',
+          'US:es-419',
+        ),
+      ],
+    },
+    {
+      name: 'Cuba Foreign Trade (EN)',
+      url: googleNewsRss(
+        '(Cuba OR Havana OR Habana) AND (exports OR imports OR trade OR investments OR exportaciones OR importaciones OR comercio OR inversiones) when:30d',
+        'en-US',
+        'US',
+        'US:en',
+      ),
+      fallbackUrls: [
+        googleNewsRss(
+          '(Cuba OR Havana OR Habana) AND (trade OR exports OR imports OR comercio OR exportaciones OR importaciones) when:365d',
+          'en-US',
+          'US',
+          'US:en',
+        ),
+      ],
+    },
   ],
   gov: [
     { name: 'White House', url: rss('https://news.google.com/rss/search?q=site:whitehouse.gov&hl=en-US&gl=US&ceid=US:en') },
