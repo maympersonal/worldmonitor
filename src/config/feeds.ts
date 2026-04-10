@@ -19,6 +19,13 @@ const googleNewsRss = (
   ceid = 'US:en',
 ) => rss(`https://news.google.com/rss/search?q=${query}&hl=${hl}&gl=${gl}&ceid=${ceid}`);
 
+const googleNewsRssPlain = (
+  query: string,
+  hl = 'en-US',
+  gl = 'US',
+  ceid = 'US:en',
+) => rss(`https://news.google.com/rss/search?q=${encodeURIComponent(query)}&hl=${hl}&gl=${gl}&ceid=${ceid}`);
+
 // Source tier system for prioritization (lower = more authoritative)
 // Tier 1: Wire services - fastest, most reliable breaking news
 // Tier 2: Major outlets - high-quality journalism
@@ -399,11 +406,35 @@ const FULL_FEEDS: Record<string, Feed[]> = {
     { name: 'Fars News', url: rss('https://news.google.com/rss/search?q=site:farsnews.ir+when:2d&hl=en-US&gl=US&ceid=US:en') },
   ],
   tech: [
-    { name: 'Hacker News', url: rss('https://hnrss.org/frontpage') },
-    { name: 'Ars Technica', url: rss('https://feeds.arstechnica.com/arstechnica/technology-lab') },
-    { name: 'The Verge', url: rss('https://www.theverge.com/rss/index.xml') },
-    { name: 'MIT Tech Review', url: rss('https://www.technologyreview.com/feed/') },
-  ],
+  {
+    name: 'Cuba Tecnologia (ES)',
+    url: googleNewsRssPlain(
+      '((Cuba OR Habana OR cubano OR cubana) AND (tecnologia OR digitalizacion OR software OR "transformacion digital" OR innovacion)) when:180d',
+      'es-419', 'US', 'US:es-419'
+    ),
+  },
+  {
+    name: 'Cuba Technology (EN)',
+    url: googleNewsRssPlain(
+      '((Cuba OR Habana OR cubano OR cubana) AND (technology OR digitalization OR software OR "digital transformation" OR innovation)) when:180d', // ✅ corregido
+      'en-US', 'US', 'US:en'
+    ),
+  },
+  {
+    name: 'Cuba Telecom (ES)',
+    url: googleNewsRssPlain(
+      '((Cuba OR ETECSA OR "Ministerio de Comunicaciones") AND (internet OR conectividad OR banda ancha OR 4G OR 5G OR fibra OR "datos moviles")) when:180d',
+      'es-419', 'US', 'US:es-419'
+    ),
+  },
+  {
+    name: 'Cuba Telecom (EN)',
+    url: googleNewsRssPlain(
+      '((Cuba OR ETECSA OR "Ministry of Communications") AND (internet OR connectivity OR broadband OR 4G OR 5G OR fiber OR "mobile data")) when:180d',
+      'en-US', 'US', 'US:en'
+    ),
+  },
+],
   ai: [
     { name: 'AI News', url: rss('https://news.google.com/rss/search?q=(OpenAI+OR+Anthropic+OR+Google+AI+OR+"large+language+model"+OR+ChatGPT)+when:2d&hl=en-US&gl=US&ceid=US:en') },
     { name: 'VentureBeat AI', url: rss('https://venturebeat.com/category/ai/feed/') },
@@ -516,22 +547,77 @@ const FULL_FEEDS: Record<string, Feed[]> = {
     },
   ],
   gov: [
-    { name: 'White House', url: rss('https://news.google.com/rss/search?q=site:whitehouse.gov&hl=en-US&gl=US&ceid=US:en') },
-    { name: 'State Dept', url: rss('https://news.google.com/rss/search?q=site:state.gov+OR+"State+Department"&hl=en-US&gl=US&ceid=US:en') },
-    { name: 'Pentagon', url: rss('https://news.google.com/rss/search?q=site:defense.gov+OR+Pentagon&hl=en-US&gl=US&ceid=US:en') },
-    { name: 'Treasury', url: rss('https://news.google.com/rss/search?q=site:treasury.gov+OR+"Treasury+Department"&hl=en-US&gl=US&ceid=US:en') },
-    { name: 'DOJ', url: rss('https://news.google.com/rss/search?q=site:justice.gov+OR+"Justice+Department"+DOJ&hl=en-US&gl=US&ceid=US:en') },
-    { name: 'Federal Reserve', url: rss('https://www.federalreserve.gov/feeds/press_all.xml') },
-    { name: 'SEC', url: rss('https://www.sec.gov/news/pressreleases.rss') },
-    { name: 'CDC', url: rss('https://news.google.com/rss/search?q=site:cdc.gov+OR+CDC+health&hl=en-US&gl=US&ceid=US:en') },
-    { name: 'FEMA', url: rss('https://news.google.com/rss/search?q=site:fema.gov+OR+FEMA+emergency&hl=en-US&gl=US&ceid=US:en') },
-    { name: 'DHS', url: rss('https://news.google.com/rss/search?q=site:dhs.gov+OR+"Homeland+Security"&hl=en-US&gl=US&ceid=US:en') },
     {
-      name: 'UN News',
-      url: railwayRss('https://news.un.org/feed/subscribe/en/news/all/rss.xml'),
-      fallbackUrls: [googleNewsRss('site:news.un.org+when:7d')],
+      name: 'Gobierno de Cuba',
+      url: googleNewsRssPlain(
+        '((Cuba OR Habana OR Havana) AND ("gobierno cubano" OR "Consejo de Ministros" OR "Consejo de Estado" OR "Asamblea Nacional" OR "Poder Popular")) when:180d',
+        'es-419',
+        'US',
+        'US:es-419',
+      ),
     },
-    { name: 'CISA', url: railwayRss('https://www.cisa.gov/cybersecurity-advisories/all.xml') },
+    {
+      name: 'Cuban Government (EN)',
+      url: googleNewsRssPlain(
+        '((Cuba OR Havana OR Habana) AND ("Cuban government" OR "Council of Ministers" OR "Council of State" OR "National Assembly" OR "Peoples Power")) when:180d',
+        'en-US',
+        'US',
+        'US:en',
+      ),
+    },
+    {
+      name: 'Presidencia Cuba',
+      url: googleNewsRssPlain(
+        '((site:presidencia.gob.cu OR "Presidencia de Cuba" OR "Diaz-Canel") AND (discurso OR decreto OR reunion OR medidas)) when:180d',
+        'es-419',
+        'US',
+        'US:es-419',
+      ),
+    },
+    {
+      name: 'Cuban Presidency (EN)',
+      url: googleNewsRssPlain(
+        '((site:presidencia.gob.cu OR "Presidency of Cuba" OR "Diaz-Canel") AND (speech OR decree OR meeting OR measures)) when:180d',
+        'en-US',
+        'US',
+        'US:en',
+      ),
+    },
+    {
+      name: 'MINREX Cuba',
+      url: googleNewsRssPlain(
+        '((site:minrex.gob.cu OR MINREX OR "Cancilleria de Cuba") AND (comunicado OR declaracion OR "politica exterior")) when:180d',
+        'es-419',
+        'US',
+        'US:es-419',
+      ),
+    },
+    {
+      name: 'Cuban Foreign Ministry (EN)',
+      url: googleNewsRssPlain(
+        '((site:minrex.gob.cu OR MINREX OR "Cuban Foreign Ministry" OR "Foreign Ministry of Cuba") AND (statement OR declaration OR "foreign policy")) when:180d',
+        'en-US',
+        'US',
+        'US:en',
+      ),
+    },
+    // Desactivado por solicitud: feeds de EE.UU. y organismos en la categoría gov.
+    // { name: 'White House', url: rss('https://news.google.com/rss/search?q=site:whitehouse.gov&hl=en-US&gl=US&ceid=US:en') },
+    // { name: 'State Dept', url: rss('https://news.google.com/rss/search?q=site:state.gov+OR+"State+Department"&hl=en-US&gl=US&ceid=US:en') },
+    // { name: 'Pentagon', url: rss('https://news.google.com/rss/search?q=site:defense.gov+OR+Pentagon&hl=en-US&gl=US&ceid=US:en') },
+    // { name: 'Treasury', url: rss('https://news.google.com/rss/search?q=site:treasury.gov+OR+"Treasury+Department"&hl=en-US&gl=US&ceid=US:en') },
+    // { name: 'DOJ', url: rss('https://news.google.com/rss/search?q=site:justice.gov+OR+"Justice+Department"+DOJ&hl=en-US&gl=US&ceid=US:en') },
+    // { name: 'Federal Reserve', url: rss('https://www.federalreserve.gov/feeds/press_all.xml') },
+    // { name: 'SEC', url: rss('https://www.sec.gov/news/pressreleases.rss') },
+    // { name: 'CDC', url: rss('https://news.google.com/rss/search?q=site:cdc.gov+OR+CDC+health&hl=en-US&gl=US&ceid=US:en') },
+    // { name: 'FEMA', url: rss('https://news.google.com/rss/search?q=site:fema.gov+OR+FEMA+emergency&hl=en-US&gl=US&ceid=US:en') },
+    // { name: 'DHS', url: rss('https://news.google.com/rss/search?q=site:dhs.gov+OR+"Homeland+Security"&hl=en-US&gl=US&ceid=US:en') },
+    // {
+    //   name: 'UN News',
+    //   url: railwayRss('https://news.un.org/feed/subscribe/en/news/all/rss.xml'),
+    //   fallbackUrls: [googleNewsRss('site:news.un.org+when:7d')],
+    // },
+    // { name: 'CISA', url: railwayRss('https://www.cisa.gov/cybersecurity-advisories/all.xml') },
   ],
   layoffs: [
     { name: 'Layoffs.fyi', url: rss('https://layoffs.fyi/feed/') },
