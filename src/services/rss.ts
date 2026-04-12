@@ -30,6 +30,45 @@ const DEBUG_FINANCE_FEED_NAMES = new Set([
   'Cuba Comercio Exterior',
   'Cuba Foreign Trade (EN)',
 ]);
+const CUBA_TECH_FILTER_FEED_NAMES = new Set([
+  'Cuba Tecnologia (ES)',
+  'Cuba Technology (EN)',
+  'Cuba Telecom (ES)',
+  'Cuba Telecom (EN)',
+]);
+const CUBA_GOV_FILTER_FEED_NAMES = new Set([
+  'Gobierno de Cuba',
+  'Cuban Government (EN)',
+  'Presidencia Cuba',
+  'Cuban Presidency (EN)',
+  'MINREX Cuba',
+  'Cuban Foreign Ministry (EN)',
+]);
+const CUBA_FINANCE_FILTER_FEED_NAMES = new Set([
+  'Cuba Economia',
+  'Cuba Economy (EN)',
+  'Cuba Moneda',
+  'Cuba Currency (EN)',
+  'Cuba Comercio Exterior',
+  'Cuba Foreign Trade (EN)',
+]);
+const CUBA_CONTEXT_RE = /\b(cuba|habana|havana|cuban|cubano|cubana|etecsa)\b/i;
+const CUBA_TECH_TOPICAL_RE =
+  /\b(tecnolog(?:ia|ias|ico|ica|icos|icas)|tecnolog[ií]as?|technology|technologies|digitalizaci[oó]n|digitalization|software|inform[aá]tica|informatizaci[oó]n|transformaci[oó]n digital|digital transformation|tic|ict|inteligencia artificial|artificial intelligence|ia|ai|app(?:s)?|aplicaciones?)\b/i;
+const CUBA_TELECOM_TOPICAL_RE =
+  /\b(internet|conectividad|connectivity|telecom(?:unicaciones?)?|telecommunications?|banda ancha|broadband|4g|5g|fibra|fiber|datos m[oó]viles|mobile data|red(?:es)? m[oó]viles|network(?:s)?|carrier(?:s)?|operador(?:es)?|etecsa|ministerio de comunicaciones|ministry of communications)\b/i;
+const CUBA_GOV_GENERAL_TOPICAL_RE =
+  /\b(gobierno cubano|cuban government|consejo de ministros|council of ministers|consejo de estado|council of state|asamblea nacional|national assembly|poder popular|people'?s power)\b/i;
+const CUBA_PRESIDENCY_TOPICAL_RE =
+  /\b(presidencia(?: de cuba)?|presidency(?: of cuba)?|diaz-canel|president(?:e)?|decreto|decree|discurso|speech|reunion|meeting|medidas|measures)\b/i;
+const CUBA_MINREX_TOPICAL_RE =
+  /\b(minrex|minrex\.gob\.cu|canciller[ií]a(?: de cuba)?|cuban foreign ministry|foreign ministry of cuba|comunicado|statement|declaraci[oó]n|declaration|pol[ií]tica exterior|foreign policy)\b/i;
+const CUBA_FINANCE_GENERAL_TOPICAL_RE =
+  /\b(econom[ií]a|economy|finanzas?|finance|comercio|trade|inversi[oó]n(?:es)?|investment(?:s)?|inflaci[oó]n|inflation|deuda|debt|remesas?|remittances?|pib|gdp)\b/i;
+const CUBA_FINANCE_CURRENCY_TOPICAL_RE =
+  /\b(peso|cup|mlc|moneda|currency|divisa|tipo de cambio|exchange rate|devaluaci[oó]n|devaluation|mercado informal|black market)\b/i;
+const CUBA_FINANCE_TRADE_TOPICAL_RE =
+  /\b(comercio exterior|foreign trade|exportaciones?|exports?|importaciones?|imports?|balanza comercial|trade balance|arancel(?:es)?|tariff(?:s)?|aduana(?:s)?|customs)\b/i;
 const XML_BUILTIN_ENTITIES = new Set(['amp', 'lt', 'gt', 'quot', 'apos']);
 const HTML_ENTITY_TO_NUMERIC: Record<string, string> = {
   nbsp: '&#160;',
@@ -45,6 +84,69 @@ const HTML_ENTITY_TO_NUMERIC: Record<string, string> = {
   trade: '&#8482;',
   euro: '&#8364;',
 };
+
+function compactText(value: string): string {
+  return value.replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim();
+}
+
+function getItemSnippet(item: Element): string {
+  const contentEncodedBySelector = item.querySelector('content\\:encoded')?.textContent || '';
+  const contentEncodedByTag = item.getElementsByTagName('content:encoded')[0]?.textContent || '';
+
+  return compactText([
+    item.querySelector('description')?.textContent || '',
+    item.querySelector('summary')?.textContent || '',
+    item.querySelector('content')?.textContent || '',
+    contentEncodedBySelector,
+    contentEncodedByTag,
+  ].join(' '));
+}
+
+function shouldKeepCubaTechHeadline(feedName: string, title: string, snippet: string): boolean {
+  if (!CUBA_TECH_FILTER_FEED_NAMES.has(feedName)) return true;
+
+  const haystack = `${title} ${snippet}`;
+  if (!CUBA_CONTEXT_RE.test(haystack)) return false;
+
+  const topicalRe = feedName.includes('Telecom') ? CUBA_TELECOM_TOPICAL_RE : CUBA_TECH_TOPICAL_RE;
+  return topicalRe.test(haystack);
+}
+
+function shouldKeepCubaGovHeadline(feedName: string, title: string, snippet: string): boolean {
+  if (!CUBA_GOV_FILTER_FEED_NAMES.has(feedName)) return true;
+
+  const haystack = `${title} ${snippet}`;
+  if (!CUBA_CONTEXT_RE.test(haystack)) return false;
+
+  if (feedName.includes('Presidencia') || feedName.includes('Presidency')) {
+    return CUBA_PRESIDENCY_TOPICAL_RE.test(haystack);
+  }
+  if (feedName.includes('MINREX') || feedName.includes('Foreign Ministry')) {
+    return CUBA_MINREX_TOPICAL_RE.test(haystack);
+  }
+  return CUBA_GOV_GENERAL_TOPICAL_RE.test(haystack);
+}
+
+function shouldKeepCubaFinanceHeadline(feedName: string, title: string, snippet: string): boolean {
+  if (!CUBA_FINANCE_FILTER_FEED_NAMES.has(feedName)) return true;
+
+  const haystack = `${title} ${snippet}`;
+  if (!CUBA_CONTEXT_RE.test(haystack)) return false;
+
+  if (feedName.includes('Moneda') || feedName.includes('Currency')) {
+    return CUBA_FINANCE_CURRENCY_TOPICAL_RE.test(haystack);
+  }
+  if (feedName.includes('Comercio Exterior') || feedName.includes('Foreign Trade')) {
+    return CUBA_FINANCE_TRADE_TOPICAL_RE.test(haystack);
+  }
+  return CUBA_FINANCE_GENERAL_TOPICAL_RE.test(haystack);
+}
+
+function shouldKeepCubaScopedHeadline(feedName: string, title: string, snippet: string): boolean {
+  return shouldKeepCubaTechHeadline(feedName, title, snippet)
+    && shouldKeepCubaGovHeadline(feedName, title, snippet)
+    && shouldKeepCubaFinanceHeadline(feedName, title, snippet);
+}
 
 function toSerializable(items: NewsItem[]): Array<Omit<NewsItem, 'pubDate'> & { pubDate: string }> {
   return items.map(item => ({ ...item, pubDate: item.pubDate.toISOString() }));
@@ -300,8 +402,7 @@ export async function fetchFeed(feed: Feed): Promise<NewsItem[]> {
         const isAtom = items.length === 0;
         if (isAtom) items = doc.querySelectorAll('entry');
 
-        const parsed = Array.from(items)
-          .slice(0, 5)
+        const parsedCandidates = Array.from(items)
           .map((item) => {
             const title = item.querySelector('title')?.textContent || '';
             let link = '';
@@ -312,6 +413,7 @@ export async function fetchFeed(feed: Feed): Promise<NewsItem[]> {
               link = item.querySelector('link')?.textContent || '';
             }
 
+            const snippet = getItemSnippet(item);
             const pubDateStr = isAtom
               ? (item.querySelector('published')?.textContent || item.querySelector('updated')?.textContent || '')
               : (item.querySelector('pubDate')?.textContent || '');
@@ -323,15 +425,30 @@ export async function fetchFeed(feed: Feed): Promise<NewsItem[]> {
             const topGeo = geoMatches[0];
 
             return {
-              source: feed.name,
-              title,
-              link,
-              pubDate,
-              isAlert,
-              threat,
-              ...(topGeo && { lat: topGeo.hub.lat, lon: topGeo.hub.lon, locationName: topGeo.hub.name }),
+              item: {
+                source: feed.name,
+                title,
+                link,
+                pubDate,
+                isAlert,
+                threat,
+                ...(topGeo && { lat: topGeo.hub.lat, lon: topGeo.hub.lon, locationName: topGeo.hub.name }),
+              } satisfies NewsItem,
+              snippet,
             };
           });
+        const filteredCandidates = parsedCandidates
+          .filter(({ item, snippet }) => shouldKeepCubaScopedHeadline(feed.name, item.title, snippet));
+        const parsed = filteredCandidates
+          .slice(0, 5)
+          .map(({ item }) => item);
+
+        const hasScopedCubaFilter = CUBA_TECH_FILTER_FEED_NAMES.has(feed.name)
+          || CUBA_GOV_FILTER_FEED_NAMES.has(feed.name)
+          || CUBA_FINANCE_FILTER_FEED_NAMES.has(feed.name);
+        if (hasScopedCubaFilter && filteredCandidates.length < parsedCandidates.length) {
+          console.info(`[RSS] ${feed.name} filtered ${parsedCandidates.length - filteredCandidates.length} off-topic items`);
+        }
 
         // If this attempt yields no headlines, try configured fallbacks before
         // accepting an empty result.

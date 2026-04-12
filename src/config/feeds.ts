@@ -409,28 +409,28 @@ const FULL_FEEDS: Record<string, Feed[]> = {
   {
     name: 'Cuba Tecnologia (ES)',
     url: googleNewsRssPlain(
-      '((Cuba OR Habana OR cubano OR cubana) AND (tecnologia OR digitalizacion OR software OR "transformacion digital" OR innovacion)) when:180d',
+      '(Cuba OR Habana OR cubano OR cubana) AND (tecnologia OR digitalizacion OR software OR "transformacion digital" OR innovacion) when:7d',
       'es-419', 'US', 'US:es-419'
     ),
   },
   {
     name: 'Cuba Technology (EN)',
     url: googleNewsRssPlain(
-      '((Cuba OR Habana OR cubano OR cubana) AND (technology OR digitalization OR software OR "digital transformation" OR innovation)) when:180d', // ✅ corregido
+      '(Cuba OR Habana OR cuban) AND (technology OR digitalization OR software OR "digital transformation" OR innovation) when:7d', // ✅ corregido
       'en-US', 'US', 'US:en'
     ),
   },
   {
     name: 'Cuba Telecom (ES)',
     url: googleNewsRssPlain(
-      '((Cuba OR ETECSA OR "Ministerio de Comunicaciones") AND (internet OR conectividad OR banda ancha OR 4G OR 5G OR fibra OR "datos moviles")) when:180d',
+      '(Cuba OR ETECSA OR "Ministerio de Comunicaciones") AND (internet OR conectividad OR banda ancha OR 4G OR 5G OR fibra OR "datos moviles") when:7d',
       'es-419', 'US', 'US:es-419'
     ),
   },
   {
     name: 'Cuba Telecom (EN)',
     url: googleNewsRssPlain(
-      '((Cuba OR ETECSA OR "Ministry of Communications") AND (internet OR connectivity OR broadband OR 4G OR 5G OR fiber OR "mobile data")) when:180d',
+      '(Cuba OR ETECSA OR "Ministry of Communications") AND (internet OR connectivity OR broadband OR 4G OR 5G OR fiber OR "mobile data") when:7d',
       'en-US', 'US', 'US:en'
     ),
   },
@@ -445,112 +445,64 @@ const FULL_FEEDS: Record<string, Feed[]> = {
   finance: [
     {
       name: 'Cuba Economia',
-      url: googleNewsRss(
-        '(Cuba OR Habana OR Havana) AND (economia OR finanzas OR comercio OR inversion OR inflacion OR deuda OR remesas OR economy OR finance OR trade OR investment) when:30d',
+      url: googleNewsRssPlain(
+        '(Cuba OR Habana OR Havana) AND (economia OR finanzas OR comercio OR inversion OR inflacion OR deuda OR remesas) when:7d',
         'es-419',
         'US',
         'US:es-419',
       ),
-      fallbackUrls: [
-        googleNewsRss(
-          '(Cuba OR Habana OR Havana) AND (economia OR economy OR finanzas OR finance) when:365d',
-          'es-419',
-          'US',
-          'US:es-419',
-        ),
-      ],
     },
     {
       name: 'Cuba Economy (EN)',
-      url: googleNewsRss(
-        '(Cuba OR Havana OR Habana) AND (economy OR finance OR trade OR investment OR inflation OR debt OR remittances OR economia OR finanzas OR comercio OR inversion) when:30d',
+      url: googleNewsRssPlain(
+        '(Cuba OR Havana OR Habana) AND (economy OR finance OR trade OR investment OR inflation OR debt OR remittances) when:7d',
         'en-US',
         'US',
         'US:en',
       ),
-      fallbackUrls: [
-        googleNewsRss(
-          '(Cuba OR Havana OR Habana) AND (economy OR finance OR economia OR finanzas) when:365d',
-          'en-US',
-          'US',
-          'US:en',
-        ),
-      ],
     },
     {
       name: 'Cuba Moneda',
-      url: googleNewsRss(
-        '(Cuba OR Habana OR Havana) AND (peso OR CUP OR MLC OR divisa OR moneda OR currency OR "tipo de cambio" OR "exchange rate") when:30d',
+      url: googleNewsRssPlain(
+        '(Cuba OR Habana OR Havana) AND (peso OR CUP OR MLC OR divisa OR moneda OR "tipo de cambio") when:7d',
         'es-419',
         'US',
         'US:es-419',
       ),
-      fallbackUrls: [
-        googleNewsRss(
-          '(Cuba OR Habana OR Havana) AND (peso OR CUP OR MLC OR moneda OR currency) when:365d',
-          'es-419',
-          'US',
-          'US:es-419',
-        ),
-      ],
     },
     {
       name: 'Cuba Currency (EN)',
-      url: googleNewsRss(
-        '(Cuba OR Havana OR Habana) AND (peso OR CUP OR MLC OR currency OR divisa OR moneda OR "exchange rate" OR "tipo de cambio") when:30d',
+      url: googleNewsRssPlain(
+        '(Cuba OR Havana OR Habana) AND (peso OR CUP OR MLC OR currency OR "exchange rate") when:7d',
         'en-US',
         'US',
         'US:en',
       ),
-      fallbackUrls: [
-        googleNewsRss(
-          '(Cuba OR Havana OR Habana) AND (currency OR peso OR CUP OR MLC OR moneda) when:365d',
-          'en-US',
-          'US',
-          'US:en',
-        ),
-      ],
     },
     {
       name: 'Cuba Comercio Exterior',
-      url: googleNewsRss(
-        '(Cuba OR Habana OR Havana) AND (exportaciones OR importaciones OR comercio OR inversiones OR exports OR imports OR trade OR investments) when:30d',
+      url: googleNewsRssPlain(
+        '(Cuba OR Habana OR Havana) AND (exportaciones OR importaciones OR comercio OR inversiones) when:7d',
         'es-419',
         'US',
         'US:es-419',
       ),
-      fallbackUrls: [
-        googleNewsRss(
-          '(Cuba OR Habana OR Havana) AND (comercio OR trade OR exportaciones OR importaciones OR exports OR imports) when:365d',
-          'es-419',
-          'US',
-          'US:es-419',
-        ),
-      ],
     },
     {
       name: 'Cuba Foreign Trade (EN)',
-      url: googleNewsRss(
-        '(Cuba OR Havana OR Habana) AND (exports OR imports OR trade OR investments OR exportaciones OR importaciones OR comercio OR inversiones) when:30d',
+      url: googleNewsRssPlain(
+        '(Cuba OR Havana OR Habana) AND (exports OR imports OR trade OR investments) when:7d',
         'en-US',
         'US',
         'US:en',
       ),
-      fallbackUrls: [
-        googleNewsRss(
-          '(Cuba OR Havana OR Habana) AND (trade OR exports OR imports OR comercio OR exportaciones OR importaciones) when:365d',
-          'en-US',
-          'US',
-          'US:en',
-        ),
-      ],
     },
   ],
   gov: [
     {
       name: 'Gobierno de Cuba',
       url: googleNewsRssPlain(
-        '((Cuba OR Habana OR Havana) AND ("gobierno cubano" OR "Consejo de Ministros" OR "Consejo de Estado" OR "Asamblea Nacional" OR "Poder Popular")) when:180d',
+        '(Cuba OR Habana OR Havana) AND ("gobierno cubano" OR "Consejo de Ministros" OR "Consejo de Estado" OR "Asamblea Nacional" OR "Poder Popular") when:7d',
         'es-419',
         'US',
         'US:es-419',
@@ -559,7 +511,7 @@ const FULL_FEEDS: Record<string, Feed[]> = {
     {
       name: 'Cuban Government (EN)',
       url: googleNewsRssPlain(
-        '((Cuba OR Havana OR Habana) AND ("Cuban government" OR "Council of Ministers" OR "Council of State" OR "National Assembly" OR "Peoples Power")) when:180d',
+        '(Cuba OR Havana OR Habana) AND ("Cuban government" OR "Council of Ministers" OR "Council of State" OR "National Assembly" OR "Peoples Power") when:7d',
         'en-US',
         'US',
         'US:en',
@@ -568,7 +520,7 @@ const FULL_FEEDS: Record<string, Feed[]> = {
     {
       name: 'Presidencia Cuba',
       url: googleNewsRssPlain(
-        '((site:presidencia.gob.cu OR "Presidencia de Cuba" OR "Diaz-Canel") AND (discurso OR decreto OR reunion OR medidas)) when:180d',
+        '(site:presidencia.gob.cu OR "Presidencia de Cuba" OR "Diaz-Canel") AND (discurso OR decreto OR reunion OR medidas) when:7d',
         'es-419',
         'US',
         'US:es-419',
@@ -577,7 +529,7 @@ const FULL_FEEDS: Record<string, Feed[]> = {
     {
       name: 'Cuban Presidency (EN)',
       url: googleNewsRssPlain(
-        '((site:presidencia.gob.cu OR "Presidency of Cuba" OR "Diaz-Canel") AND (speech OR decree OR meeting OR measures)) when:180d',
+        '(site:presidencia.gob.cu OR "Presidency of Cuba" OR "Diaz-Canel") AND (speech OR decree OR meeting OR measures) when:7d',
         'en-US',
         'US',
         'US:en',
@@ -586,7 +538,7 @@ const FULL_FEEDS: Record<string, Feed[]> = {
     {
       name: 'MINREX Cuba',
       url: googleNewsRssPlain(
-        '((site:minrex.gob.cu OR MINREX OR "Cancilleria de Cuba") AND (comunicado OR declaracion OR "politica exterior")) when:180d',
+        '(site:minrex.gob.cu OR MINREX OR "Cancilleria de Cuba") AND (comunicado OR declaracion OR "politica exterior") when:7d',
         'es-419',
         'US',
         'US:es-419',
@@ -595,7 +547,7 @@ const FULL_FEEDS: Record<string, Feed[]> = {
     {
       name: 'Cuban Foreign Ministry (EN)',
       url: googleNewsRssPlain(
-        '((site:minrex.gob.cu OR MINREX OR "Cuban Foreign Ministry" OR "Foreign Ministry of Cuba") AND (statement OR declaration OR "foreign policy")) when:180d',
+        '(site:minrex.gob.cu OR MINREX OR "Cuban Foreign Ministry" OR "Foreign Ministry of Cuba") AND (statement OR declaration OR "foreign policy") when:7d',
         'en-US',
         'US',
         'US:en',
@@ -702,11 +654,80 @@ const FULL_FEEDS: Record<string, Feed[]> = {
     },
   ],
   energy: [
-    { name: 'Oil & Gas', url: rss('https://news.google.com/rss/search?q=(oil+price+OR+OPEC+OR+"natural+gas"+OR+pipeline+OR+LNG)+when:2d&hl=en-US&gl=US&ceid=US:en') },
-    { name: 'Nuclear Energy', url: rss('https://news.google.com/rss/search?q=("nuclear+energy"+OR+"nuclear+power"+OR+uranium+OR+IAEA)+when:3d&hl=en-US&gl=US&ceid=US:en') },
-    { name: 'Reuters Energy', url: rss('https://news.google.com/rss/search?q=site:reuters.com+(oil+OR+gas+OR+energy+OR+OPEC)+when:3d&hl=en-US&gl=US&ceid=US:en') },
-    { name: 'Mining & Resources', url: rss('https://news.google.com/rss/search?q=(lithium+OR+"rare+earth"+OR+cobalt+OR+mining)+when:3d&hl=en-US&gl=US&ceid=US:en') },
+    {
+      name: 'Petróleo y Gas (Cuba)',
+      url: googleNewsRssPlain(
+        '((Cuba OR Habana OR Havana) AND (petroleo OR "gas natural" OR OPEP OR OPEC OR oleoducto OR gasoducto OR LNG OR refineria)) when:3d',
+        'es-419',
+        'US',
+        'US:es-419',
+      ),
+    },
+    {
+      name: 'Oil & Gas (Cuba)',
+      url: googleNewsRssPlain(
+        '((Cuba OR Havana OR Habana) AND ("oil price" OR OPEC OR "natural gas" OR pipeline OR LNG OR refinery)) when:3d',
+        'en-US',
+        'US',
+        'US:en',
+      ),
+    },
+    {
+      name: 'Energía Nuclear (Cuba)',
+      url: googleNewsRssPlain(
+        '((Cuba OR Habana OR Havana) AND ("energia nuclear" OR "energia atomica" OR uranio OR OIEA OR IAEA)) when:7d',
+        'es-419',
+        'US',
+        'US:es-419',
+      ),
+    },
+    {
+      name: 'Nuclear Energy (Cuba)',
+      url: googleNewsRssPlain(
+        '((Cuba OR Havana OR Habana) AND ("nuclear energy" OR "nuclear power" OR uranium OR IAEA)) when:7d',
+        'en-US',
+        'US',
+        'US:en',
+      ),
+    },
+    {
+      name: 'Reuters Energía Cuba',
+      url: googleNewsRssPlain(
+        '((site:reuters.com) AND (Cuba OR Habana OR Havana) AND (energia OR petroleo OR gas OR OPEP OR OPEC OR LNG)) when:7d',
+        'es-419',
+        'US',
+        'US:es-419',
+      ),
+    },
+    {
+      name: 'Reuters Energy Cuba (EN)',
+      url: googleNewsRssPlain(
+        '((site:reuters.com) AND (Cuba OR Havana OR Habana) AND (energy OR oil OR gas OR OPEC OR LNG)) when:7d',
+        'en-US',
+        'US',
+        'US:en',
+      ),
+    },
+    {
+      name: 'Minería y Recursos (Cuba)',
+      url: googleNewsRssPlain(
+        '((Cuba OR Habana OR Havana) AND (mineria OR niquel OR cobalto OR litio OR "tierras raras" OR cobre OR recursos)) when:14d',
+        'es-419',
+        'US',
+        'US:es-419',
+      ),
+    },
+    {
+      name: 'Mining & Resources (Cuba)',
+      url: googleNewsRssPlain(
+        '((Cuba OR Havana OR Habana) AND (mining OR nickel OR cobalt OR lithium OR "rare earth" OR copper OR resources)) when:14d',
+        'en-US',
+        'US',
+        'US:en',
+      ),
+    },
   ],
+  
   cuba: [
     {
       name: 'Cubadebate',
