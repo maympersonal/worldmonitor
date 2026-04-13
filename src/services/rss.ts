@@ -52,6 +52,26 @@ const CUBA_FINANCE_FILTER_FEED_NAMES = new Set([
   'Cuba Comercio Exterior',
   'Cuba Foreign Trade (EN)',
 ]);
+const CUBA_AI_FILTER_FEED_NAMES = new Set([
+  'IA en Cuba',
+  'AI in Cuba (EN)',
+  'Política de IA (Cuba)',
+  'Cuban AI Policy (EN)',
+  'Infraestructura IA Cuba',
+  'Cuba AI Infrastructure (EN)',
+  'Reuters IA Cuba',
+  'Reuters AI Cuba (EN)',
+]);
+const CUBA_ENERGY_FILTER_FEED_NAMES = new Set([
+  'Petróleo y Gas (Cuba)',
+  'Oil & Gas (Cuba)',
+  'Energía Nuclear (Cuba)',
+  'Nuclear Energy (Cuba)',
+  'Reuters Energía Cuba',
+  'Reuters Energy Cuba (EN)',
+  'Minería y Recursos (Cuba)',
+  'Mining & Resources (Cuba)',
+]);
 const CUBA_CONTEXT_RE = /\b(cuba|habana|havana|cuban|cubano|cubana|etecsa)\b/i;
 const CUBA_TECH_TOPICAL_RE =
   /\b(tecnolog(?:ia|ias|ico|ica|icos|icas)|tecnolog[ií]as?|technology|technologies|digitalizaci[oó]n|digitalization|software|inform[aá]tica|informatizaci[oó]n|transformaci[oó]n digital|digital transformation|tic|ict|inteligencia artificial|artificial intelligence|ia|ai|app(?:s)?|aplicaciones?)\b/i;
@@ -69,6 +89,22 @@ const CUBA_FINANCE_CURRENCY_TOPICAL_RE =
   /\b(peso|cup|mlc|moneda|currency|divisa|tipo de cambio|exchange rate|devaluaci[oó]n|devaluation|mercado informal|black market)\b/i;
 const CUBA_FINANCE_TRADE_TOPICAL_RE =
   /\b(comercio exterior|foreign trade|exportaciones?|exports?|importaciones?|imports?|balanza comercial|trade balance|arancel(?:es)?|tariff(?:s)?|aduana(?:s)?|customs)\b/i;
+const CUBA_AI_GENERAL_TOPICAL_RE =
+  /\b(inteligencia artificial|artificial intelligence|\bia\b|\bai\b|aprendizaje autom[aá]tico|machine learning|ia generativa|generative ai|chatgpt|modelo de lenguaje|language model|llm|digitalizaci[oó]n|digitalization|transformaci[oó]n digital|digital transformation|tecnolog[ií]a|technology)\b/i;
+const CUBA_AI_POLICY_TOPICAL_RE =
+  /\b(inteligencia artificial|artificial intelligence|\bia\b|\bai\b|regulaci[oó]n|regulation|estrategia|strategy|decreto|policy|lineamientos|gobierno cubano|cuban government|transformaci[oó]n digital|digital transformation|mincom|citma)\b/i;
+const CUBA_AI_INFRA_TOPICAL_RE =
+  /\b(inteligencia artificial|artificial intelligence|\bia\b|\bai\b|centro de datos|data center|nube|cloud|computaci[oó]n|compute|servidores|servers|gpu|fibra [oó]ptica|fiber optics|conectividad|connectivity|etecsa|telecom|digitalizaci[oó]n|digitalization|tecnolog[ií]a|technology)\b/i;
+const CUBA_AI_REUTERS_TOPICAL_RE =
+  /\b(inteligencia artificial|artificial intelligence|\bia\b|\bai\b|automatizaci[oó]n|automation|centro de datos|data center|machine learning|chatgpt|llm|digitalizaci[oó]n|digitalization|tecnolog[ií]a|technology|telecom)\b/i;
+const CUBA_ENERGY_OIL_GAS_TOPICAL_RE =
+  /\b(petr[oó]leo|oil(?: price)?|gas natural|natural gas|opec|opep|oleoducto|gasoducto|pipeline|lng|refiner[ií]a|refinery|combustible|fuel)\b/i;
+const CUBA_ENERGY_NUCLEAR_TOPICAL_RE =
+  /\b(energ[ií]a nuclear|nuclear energy|nuclear power|energ[ií]a at[oó]mica|uranio|uranium|oiea|iaea|reactor(?:es)?|reactor(?:s)?)\b/i;
+const CUBA_ENERGY_MINING_TOPICAL_RE =
+  /\b(miner[ií]a|mining|n[ií]quel|nickel|cobalto|cobalt|litio|lithium|tierras raras|rare earth|rare-earth|cobre|copper|recursos|resources)\b/i;
+const CUBA_ENERGY_REUTERS_TOPICAL_RE =
+  /\b(energ[ií]a|energy|petr[oó]leo|oil|gas|opec|opep|lng|nuclear|miner[ií]a|mining|recursos|resources)\b/i;
 const XML_BUILTIN_ENTITIES = new Set(['amp', 'lt', 'gt', 'quot', 'apos']);
 const HTML_ENTITY_TO_NUMERIC: Record<string, string> = {
   nbsp: '&#160;',
@@ -142,10 +178,55 @@ function shouldKeepCubaFinanceHeadline(feedName: string, title: string, snippet:
   return CUBA_FINANCE_GENERAL_TOPICAL_RE.test(haystack);
 }
 
+function shouldKeepCubaAiHeadline(feedName: string, title: string, snippet: string): boolean {
+  if (!CUBA_AI_FILTER_FEED_NAMES.has(feedName)) return true;
+
+  const haystack = `${title} ${snippet}`;
+  // AI feeds are already Cuba-scoped at query level. Google News can omit
+  // explicit Cuba tokens in title/snippet, so we only enforce topical match.
+  if (feedName.includes('Política') || feedName.includes('Policy')) {
+    return CUBA_AI_POLICY_TOPICAL_RE.test(haystack);
+  }
+  if (feedName.includes('Infraestructura') || feedName.includes('Infrastructure')) {
+    return CUBA_AI_INFRA_TOPICAL_RE.test(haystack);
+  }
+  if (feedName.includes('Reuters')) {
+    return CUBA_AI_REUTERS_TOPICAL_RE.test(haystack);
+  }
+  return CUBA_AI_GENERAL_TOPICAL_RE.test(haystack);
+}
+
+function shouldKeepCubaEnergyHeadline(feedName: string, title: string, snippet: string): boolean {
+  if (!CUBA_ENERGY_FILTER_FEED_NAMES.has(feedName)) return true;
+
+  const haystack = `${title} ${snippet}`;
+  if (!CUBA_CONTEXT_RE.test(haystack)) return false;
+  if (feedName.includes('Nuclear')) {
+    return CUBA_ENERGY_NUCLEAR_TOPICAL_RE.test(haystack);
+  }
+  if (feedName.includes('Minería') || feedName.includes('Mining')) {
+    return CUBA_ENERGY_MINING_TOPICAL_RE.test(haystack);
+  }
+  if (feedName.includes('Reuters')) {
+    return CUBA_ENERGY_REUTERS_TOPICAL_RE.test(haystack);
+  }
+  return CUBA_ENERGY_OIL_GAS_TOPICAL_RE.test(haystack);
+}
+
 function shouldKeepCubaScopedHeadline(feedName: string, title: string, snippet: string): boolean {
   return shouldKeepCubaTechHeadline(feedName, title, snippet)
     && shouldKeepCubaGovHeadline(feedName, title, snippet)
-    && shouldKeepCubaFinanceHeadline(feedName, title, snippet);
+    && shouldKeepCubaFinanceHeadline(feedName, title, snippet)
+    && shouldKeepCubaAiHeadline(feedName, title, snippet)
+    && shouldKeepCubaEnergyHeadline(feedName, title, snippet);
+}
+
+function isCubaScopedFeed(feedName: string): boolean {
+  return CUBA_TECH_FILTER_FEED_NAMES.has(feedName)
+    || CUBA_GOV_FILTER_FEED_NAMES.has(feedName)
+    || CUBA_FINANCE_FILTER_FEED_NAMES.has(feedName)
+    || CUBA_AI_FILTER_FEED_NAMES.has(feedName)
+    || CUBA_ENERGY_FILTER_FEED_NAMES.has(feedName);
 }
 
 function toSerializable(items: NewsItem[]): Array<Omit<NewsItem, 'pubDate'> & { pubDate: string }> {
@@ -354,16 +435,21 @@ function parseRssDocument(xml: string): { doc: Document; recovered: boolean } {
 
 export async function fetchFeed(feed: Feed): Promise<NewsItem[]> {
   if (feedCache.size > MAX_CACHE_ENTRIES / 2) cleanupCaches();
+  const hasScopedCubaFilter = isCubaScopedFeed(feed.name);
 
   if (isFeedOnCooldown(feed.name)) {
     const cached = feedCache.get(feed.name);
-    if (cached) return cached.items;
-    return (await loadPersistentFeed(feed.name)) || [];
+    if (cached && !(hasScopedCubaFilter && cached.items.length === 0)) return cached.items;
+    const persistent = await loadPersistentFeed(feed.name);
+    if (persistent && !(hasScopedCubaFilter && persistent.length === 0)) return persistent;
+    return [];
   }
 
   const cached = feedCache.get(feed.name);
   if (cached && Date.now() - cached.timestamp < CACHE_TTL) {
-    return cached.items;
+    if (!(hasScopedCubaFilter && cached.items.length === 0)) {
+      return cached.items;
+    }
   }
 
   try {
@@ -443,9 +529,6 @@ export async function fetchFeed(feed: Feed): Promise<NewsItem[]> {
           .slice(0, 5)
           .map(({ item }) => item);
 
-        const hasScopedCubaFilter = CUBA_TECH_FILTER_FEED_NAMES.has(feed.name)
-          || CUBA_GOV_FILTER_FEED_NAMES.has(feed.name)
-          || CUBA_FINANCE_FILTER_FEED_NAMES.has(feed.name);
         if (hasScopedCubaFilter && filteredCandidates.length < parsedCandidates.length) {
           console.info(`[RSS] ${feed.name} filtered ${parsedCandidates.length - filteredCandidates.length} off-topic items`);
         }
@@ -461,8 +544,12 @@ export async function fetchFeed(feed: Feed): Promise<NewsItem[]> {
           console.info(`[RSS] ${feed.name} recovered via fallback source`);
         }
 
-        feedCache.set(feed.name, { items: parsed, timestamp: Date.now() });
-        void setPersistentCache(`feed:${feed.name}`, toSerializable(parsed));
+        if (parsed.length > 0 || !hasScopedCubaFilter) {
+          feedCache.set(feed.name, { items: parsed, timestamp: Date.now() });
+          void setPersistentCache(`feed:${feed.name}`, toSerializable(parsed));
+        } else {
+          feedCache.delete(feed.name);
+        }
         recordFeedSuccess(feed.name);
         ingestHeadlines(parsed.map(item => ({
           title: item.title,

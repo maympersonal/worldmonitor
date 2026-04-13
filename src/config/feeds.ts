@@ -557,11 +557,142 @@ const FULL_FEEDS: Record<string, Feed[]> = {
   },
 ],
   ai: [
-    { name: 'AI News', url: rss('https://news.google.com/rss/search?q=(OpenAI+OR+Anthropic+OR+Google+AI+OR+"large+language+model"+OR+ChatGPT)+when:2d&hl=en-US&gl=US&ceid=US:en') },
-    { name: 'VentureBeat AI', url: rss('https://venturebeat.com/category/ai/feed/') },
-    { name: 'The Verge AI', url: rss('https://www.theverge.com/rss/ai-artificial-intelligence/index.xml') },
-    { name: 'MIT Tech Review', url: rss('https://www.technologyreview.com/topic/artificial-intelligence/feed') },
-    { name: 'ArXiv AI', url: rss('https://export.arxiv.org/rss/cs.AI') },
+    {
+      name: 'IA en Cuba',
+      url: googleNewsRssPlain(
+        '(Cuba OR Habana OR cubano OR cubana) AND ("inteligencia artificial" OR IA OR "aprendizaje automatico" OR "machine learning" OR "IA generativa" OR ChatGPT OR "modelo de lenguaje" OR LLM) when:7d',
+        'es-419',
+        'US',
+        'US:es-419',
+      ),
+      fallbackUrls: [
+        googleNewsRssPlain(
+          '(Cuba OR Habana OR cubano OR cubana) AND ("inteligencia artificial" OR IA OR "aprendizaje automatico" OR "machine learning" OR ChatGPT OR digitalizacion OR "transformacion digital" OR tecnologia) when:7d',
+          'es-419',
+          'US',
+          'US:es-419',
+        ),
+      ],
+    },
+    {
+      name: 'AI in Cuba (EN)',
+      url: googleNewsRssPlain(
+        '(Cuba OR Havana OR Habana OR cuban) AND ("artificial intelligence" OR AI OR "machine learning" OR "generative AI" OR ChatGPT OR "language model" OR LLM) when:7d',
+        'en-US',
+        'US',
+        'US:en',
+      ),
+      fallbackUrls: [
+        googleNewsRssPlain(
+          '(Cuba OR Havana OR Habana OR cuban) AND ("artificial intelligence" OR AI OR "machine learning" OR ChatGPT OR digitalization OR "digital transformation" OR technology) when:7d',
+          'en-US',
+          'US',
+          'US:en',
+        ),
+      ],
+    },
+    {
+      name: 'Política de IA (Cuba)',
+      url: googleNewsRssPlain(
+        '(Cuba OR Habana OR Havana OR MINCOM OR CITMA OR "gobierno cubano") AND ("inteligencia artificial" OR IA OR digitalizacion OR "transformacion digital" OR "machine learning" OR ChatGPT OR "artificial intelligence") when:7d',
+        'es-419',
+        'US',
+        'US:es-419',
+      ),
+      fallbackUrls: [
+        googleNewsRssPlain(
+          '(Cuba OR Habana OR Havana OR MINCOM OR CITMA OR "gobierno cubano") AND (digitalizacion OR "transformacion digital" OR tecnologia OR conectividad OR "inteligencia artificial" OR IA) when:7d',
+          'es-419',
+          'US',
+          'US:es-419',
+        ),
+      ],
+    },
+    {
+      name: 'Cuban AI Policy (EN)',
+      url: googleNewsRssPlain(
+        '(Cuba OR Havana OR Habana OR "Cuban government" OR MINCOM OR CITMA) AND ("artificial intelligence" OR AI OR digitalization OR "digital transformation" OR "machine learning" OR ChatGPT) when:7d',
+        'en-US',
+        'US',
+        'US:en',
+      ),
+      fallbackUrls: [
+        googleNewsRssPlain(
+          '(Cuba OR Havana OR Habana OR "Cuban government" OR MINCOM OR CITMA) AND (digitalization OR "digital transformation" OR technology OR connectivity OR "artificial intelligence" OR AI) when:7d',
+          'en-US',
+          'US',
+          'US:en',
+        ),
+      ],
+    },
+    {
+      name: 'Infraestructura IA Cuba',
+      url: googleNewsRssPlain(
+        '(Cuba OR Habana OR Havana OR ETECSA) AND ("inteligencia artificial" OR IA OR "centro de datos" OR nube OR "computacion" OR servidores OR GPU OR "fibra optica" OR conectividad OR digitalizacion OR "artificial intelligence" OR AI OR "data center" OR cloud OR connectivity) when:7d',
+        'es-419',
+        'US',
+        'US:es-419',
+      ),
+      fallbackUrls: [
+        googleNewsRssPlain(
+          '(Cuba OR Habana OR Havana OR ETECSA) AND ("centro de datos" OR conectividad OR nube OR telecom OR digitalizacion OR tecnologia OR "inteligencia artificial" OR IA) when:7d',
+          'es-419',
+          'US',
+          'US:es-419',
+        ),
+      ],
+    },
+    {
+      name: 'Cuba AI Infrastructure (EN)',
+      url: googleNewsRssPlain(
+        '(Cuba OR Havana OR Habana OR ETECSA) AND ("artificial intelligence" OR AI OR "data center" OR cloud OR compute OR servers OR GPU OR "fiber optics" OR connectivity OR digitalization) when:7d',
+        'en-US',
+        'US',
+        'US:en',
+      ),
+      fallbackUrls: [
+        googleNewsRssPlain(
+          '(Cuba OR Havana OR Habana OR ETECSA) AND ("data center" OR connectivity OR cloud OR telecom OR digitalization OR technology OR "artificial intelligence" OR AI) when:7d',
+          'en-US',
+          'US',
+          'US:en',
+        ),
+      ],
+    },
+    // {
+    //   name: 'Reuters IA Cuba',
+    //   url: googleNewsRssPlain(
+    //     '((site:reuters.com) AND (Cuba OR Habana OR Havana) AND ("inteligencia artificial" OR IA OR tecnologia OR digitalizacion OR automatizacion OR "centro de datos")) when:30d',
+    //     'es-419',
+    //     'US',
+    //     'US:es-419',
+    //   ),
+    //   fallbackUrls: [
+    //     googleNewsRssPlain(
+    //       '((Cuba OR Habana OR Havana) AND ("inteligencia artificial" OR IA OR tecnologia OR digitalizacion OR conectividad)) when:30d',
+    //       'es-419',
+    //       'US',
+    //       'US:es-419',
+    //     ),
+    //   ],
+    // },
+    // {
+    //   name: 'Reuters AI Cuba (EN)',
+    //   url: googleNewsRssPlain(
+    //     '((site:reuters.com) AND (Cuba OR Havana OR Habana) AND ("artificial intelligence" OR AI OR technology OR "digital transformation" OR automation OR telecom OR "data center")) when:30d',
+    //     'en-US',
+    //     'US',
+    //     'US:en',
+    //   ),
+    //   fallbackUrls: [
+    //     googleNewsRssPlain(
+    //       '((Cuba OR Havana OR Habana) AND ("artificial intelligence" OR AI OR technology OR digitalization OR connectivity)) when:30d',
+    //       'en-US',
+    //       'US',
+    //       'US:en',
+    //     ),
+    //   ],
+    // },
   ],
   finance: [
     {
@@ -778,7 +909,7 @@ const FULL_FEEDS: Record<string, Feed[]> = {
     {
       name: 'Petróleo y Gas (Cuba)',
       url: googleNewsRssPlain(
-        '((Cuba OR Habana OR Havana) AND (petroleo OR "gas natural" OR OPEP OR OPEC OR oleoducto OR gasoducto OR LNG OR refineria)) when:3d',
+        '(Cuba OR Habana OR Havana) AND (petroleo OR "gas natural" OR OPEP OR OPEC OR oleoducto OR gasoducto OR LNG OR refineria) when:7d',
         'es-419',
         'US',
         'US:es-419',
@@ -787,7 +918,7 @@ const FULL_FEEDS: Record<string, Feed[]> = {
     {
       name: 'Oil & Gas (Cuba)',
       url: googleNewsRssPlain(
-        '((Cuba OR Havana OR Habana) AND ("oil price" OR OPEC OR "natural gas" OR pipeline OR LNG OR refinery)) when:3d',
+        '(Cuba OR Havana OR Habana) AND ("oil price" OR OPEC OR "natural gas" OR pipeline OR LNG OR refinery) when:7d',
         'en-US',
         'US',
         'US:en',
@@ -796,7 +927,7 @@ const FULL_FEEDS: Record<string, Feed[]> = {
     {
       name: 'Energía Nuclear (Cuba)',
       url: googleNewsRssPlain(
-        '((Cuba OR Habana OR Havana) AND ("energia nuclear" OR "energia atomica" OR uranio OR OIEA OR IAEA)) when:7d',
+        '(Cuba OR Habana OR Havana) AND ("energia nuclear" OR "energia atomica" OR uranio OR OIEA OR IAEA) when:7d',
         'es-419',
         'US',
         'US:es-419',
@@ -805,7 +936,7 @@ const FULL_FEEDS: Record<string, Feed[]> = {
     {
       name: 'Nuclear Energy (Cuba)',
       url: googleNewsRssPlain(
-        '((Cuba OR Havana OR Habana) AND ("nuclear energy" OR "nuclear power" OR uranium OR IAEA)) when:7d',
+        '(Cuba OR Havana OR Habana) AND ("nuclear energy" OR "nuclear power" OR uranium OR IAEA) when:7d',
         'en-US',
         'US',
         'US:en',
@@ -814,7 +945,7 @@ const FULL_FEEDS: Record<string, Feed[]> = {
     {
       name: 'Reuters Energía Cuba',
       url: googleNewsRssPlain(
-        '((site:reuters.com) AND (Cuba OR Habana OR Havana) AND (energia OR petroleo OR gas OR OPEP OR OPEC OR LNG)) when:7d',
+        '(site:reuters.com) AND (Cuba OR Habana OR Havana) AND (energia OR petroleo OR gas OR OPEP OR OPEC OR LNG) when:7d',
         'es-419',
         'US',
         'US:es-419',
@@ -823,7 +954,7 @@ const FULL_FEEDS: Record<string, Feed[]> = {
     {
       name: 'Reuters Energy Cuba (EN)',
       url: googleNewsRssPlain(
-        '((site:reuters.com) AND (Cuba OR Havana OR Habana) AND (energy OR oil OR gas OR OPEC OR LNG)) when:7d',
+        '(site:reuters.com) AND (Cuba OR Havana OR Habana) AND (energy OR oil OR gas OR OPEC OR LNG) when:7d',
         'en-US',
         'US',
         'US:en',
@@ -832,7 +963,7 @@ const FULL_FEEDS: Record<string, Feed[]> = {
     {
       name: 'Minería y Recursos (Cuba)',
       url: googleNewsRssPlain(
-        '((Cuba OR Habana OR Havana) AND (mineria OR niquel OR cobalto OR litio OR "tierras raras" OR cobre OR recursos)) when:14d',
+        '(Cuba OR Habana OR Havana) AND (mineria OR niquel OR cobalto OR litio OR "tierras raras" OR cobre OR recursos) when:7d',
         'es-419',
         'US',
         'US:es-419',
@@ -841,7 +972,7 @@ const FULL_FEEDS: Record<string, Feed[]> = {
     {
       name: 'Mining & Resources (Cuba)',
       url: googleNewsRssPlain(
-        '((Cuba OR Havana OR Habana) AND (mining OR nickel OR cobalt OR lithium OR "rare earth" OR copper OR resources)) when:14d',
+        '(Cuba OR Havana OR Habana) AND (mining OR nickel OR cobalt OR lithium OR "rare earth" OR copper OR resources) when:7d',
         'en-US',
         'US',
         'US:en',

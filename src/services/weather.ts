@@ -36,6 +36,28 @@ interface NWSResponse {
 
 const NWS_API = 'https://api.weather.gov/alerts/active';
 const breaker = createCircuitBreaker<WeatherAlert[]>({ name: 'NWS Weather' });
+const CUBA_BOUNDS = {
+  minLat: 19,
+  maxLat: 24,
+  minLon: -86,
+  maxLon: -74,
+};
+const CUBA_TEXT_RE = /\b(cuba|habana|havana|santiago de cuba)\b/i;
+
+function isPointInCuba([lon, lat]: [number, number]): boolean {
+  return lon >= CUBA_BOUNDS.minLon
+    && lon <= CUBA_BOUNDS.maxLon
+    && lat >= CUBA_BOUNDS.minLat
+    && lat <= CUBA_BOUNDS.maxLat;
+}
+
+function isAlertFromCuba(alert: WeatherAlert): boolean {
+  if (CUBA_TEXT_RE.test(alert.areaDesc) || CUBA_TEXT_RE.test(alert.headline)) {
+    return true;
+  }
+  if (alert.centroid && isPointInCuba(alert.centroid)) return true;
+  return alert.coordinates.some(isPointInCuba);
+}
 
 export async function fetchWeatherAlerts(): Promise<WeatherAlert[]> {
   return breaker.execute(async () => {
@@ -64,7 +86,8 @@ export async function fetchWeatherAlerts(): Promise<WeatherAlert[]> {
           coordinates: coords,
           centroid: calculateCentroid(coords),
         };
-      });
+      })
+      .filter(isAlertFromCuba);
   }, []);
 }
 
