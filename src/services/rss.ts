@@ -69,8 +69,8 @@ const CUBA_ENERGY_FILTER_FEED_NAMES = new Set([
   'Nuclear Energy (Cuba)',
   'Reuters Energía Cuba',
   'Reuters Energy Cuba (EN)',
-  'Minería y Recursos (Cuba)',
-  'Mining & Resources (Cuba)',
+  'Minería y Recursos Naturales (Cuba)',
+  'Mining & Natural Resources (Cuba)',
 ]);
 const CUBA_CONTEXT_RE = /\b(cuba|habana|havana|cuban|cubano|cubana|etecsa)\b/i;
 const CUBA_TECH_TOPICAL_RE =
@@ -102,9 +102,9 @@ const CUBA_ENERGY_OIL_GAS_TOPICAL_RE =
 const CUBA_ENERGY_NUCLEAR_TOPICAL_RE =
   /\b(energ[ií]a nuclear|nuclear energy|nuclear power|energ[ií]a at[oó]mica|uranio|uranium|oiea|iaea|reactor(?:es)?|reactor(?:s)?)\b/i;
 const CUBA_ENERGY_MINING_TOPICAL_RE =
-  /\b(miner[ií]a|mining|n[ií]quel|nickel|cobalto|cobalt|litio|lithium|tierras raras|rare earth|rare-earth|cobre|copper|recursos|resources)\b/i;
+  /\b(recursos naturales|natural resources|miner[ií]a|mining|industria extractiva|extractive|mineral(?:es)?|minerals?|n[ií]quel|nickel|cobalto|cobalt|litio|lithium|tierras raras|rare earth|rare-earth|cobre|copper)\b/i;
 const CUBA_ENERGY_REUTERS_TOPICAL_RE =
-  /\b(energ[ií]a|energy|petr[oó]leo|oil|gas|opec|opep|lng|nuclear|miner[ií]a|mining|recursos|resources)\b/i;
+  /\b(energ[ií]a|energy|petr[oó]leo|oil|gas|opec|opep|lng|nuclear|miner[ií]a|mining|recursos naturales|natural resources|mineral(?:es)?|minerals?)\b/i;
 const XML_BUILTIN_ENTITIES = new Set(['amp', 'lt', 'gt', 'quot', 'apos']);
 const HTML_ENTITY_TO_NUMERIC: Record<string, string> = {
   nbsp: '&#160;',

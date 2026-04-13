@@ -961,18 +961,18 @@ const FULL_FEEDS: Record<string, Feed[]> = {
       ),
     },
     {
-      name: 'Minería y Recursos (Cuba)',
+      name: 'Minería y Recursos Naturales (Cuba)',
       url: googleNewsRssPlain(
-        '(Cuba OR Habana OR Havana) AND (mineria OR niquel OR cobalto OR litio OR "tierras raras" OR cobre OR recursos) when:7d',
+        '(Cuba OR Habana OR Havana) AND ("recursos naturales" OR mineria OR "industria extractiva" OR niquel OR cobalto OR litio OR "tierras raras" OR cobre OR minerales) when:7d',
         'es-419',
         'US',
         'US:es-419',
       ),
     },
     {
-      name: 'Mining & Resources (Cuba)',
+      name: 'Mining & Natural Resources (Cuba)',
       url: googleNewsRssPlain(
-        '(Cuba OR Havana OR Habana) AND (mining OR nickel OR cobalt OR lithium OR "rare earth" OR copper OR resources) when:7d',
+        '(Cuba OR Havana OR Habana) AND ("natural resources" OR mining OR extractive OR nickel OR cobalt OR lithium OR "rare earth" OR copper OR minerals) when:7d',
         'en-US',
         'US',
         'US:en',
