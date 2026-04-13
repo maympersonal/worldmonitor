@@ -383,6 +383,127 @@ export function isStateAffiliatedSource(sourceName: string): boolean {
   return !!profile?.stateAffiliated;
 }
 
+interface CubaProvinceFeedDefinition {
+  key: string;
+  panelName: string;
+  terms: string[];
+  provincialOutlet?: {
+    name: string;
+    url: string;
+  };
+}
+
+const CUBA_PROVINCE_FEED_DEFINITIONS: CubaProvinceFeedDefinition[] = [
+  {
+    key: 'pinarDelRio',
+    panelName: 'Pinar del Río',
+    terms: ['"Pinar del Río"', '"Pinar del Rio"'],
+    provincialOutlet: { name: 'Guerrillero (Pinar del Río)', url: 'https://www.guerrillero.cu' },
+  },
+  { key: 'artemisa', panelName: 'Artemisa', terms: ['Artemisa'] },
+  { key: 'laHabana', panelName: 'La Habana', terms: ['"La Habana"', 'Havana'] },
+  {
+    key: 'islaDeLaJuventud',
+    panelName: 'Isla de la Juventud',
+    terms: ['"Isla de la Juventud"', '"Nueva Gerona"'],
+    provincialOutlet: { name: 'Periódico Victoria (Isla de la Juventud)', url: 'https://www.periodicovictoria.cu' },
+  },
+  { key: 'mayabeque', panelName: 'Mayabeque', terms: ['Mayabeque'] },
+  {
+    key: 'matanzas',
+    panelName: 'Matanzas',
+    terms: ['Matanzas'],
+    provincialOutlet: { name: 'Girón (Matanzas)', url: 'https://giron.cu' },
+  },
+  {
+    key: 'cienfuegos',
+    panelName: 'Cienfuegos',
+    terms: ['Cienfuegos'],
+    provincialOutlet: { name: '5 de Septiembre (Cienfuegos)', url: 'https://www.5septiembre.cu' },
+  },
+  {
+    key: 'villaClara',
+    panelName: 'Villa Clara',
+    terms: ['"Villa Clara"'],
+    provincialOutlet: { name: 'Vanguardia (Villa Clara)', url: 'https://www.vanguardia.cu' },
+  },
+  {
+    key: 'sanctiSpiritus',
+    panelName: 'Sancti Spíritus',
+    terms: ['"Sancti Spíritus"', '"Sancti Spiritus"'],
+    provincialOutlet: { name: 'Escambray (Sancti Spíritus)', url: 'https://www.escambray.cu' },
+  },
+  {
+    key: 'ciegoDeAvila',
+    panelName: 'Ciego de Ávila',
+    terms: ['"Ciego de Ávila"', '"Ciego de Avila"'],
+    provincialOutlet: { name: 'Invasor (Ciego de Ávila)', url: 'https://www.invasor.cu/es' },
+  },
+  {
+    key: 'camaguey',
+    panelName: 'Camagüey',
+    terms: ['Camagüey', 'Camaguey'],
+    provincialOutlet: { name: 'Adelante (Camagüey)', url: 'https://www.adelante.cu/index.php/es' },
+  },
+  {
+    key: 'lasTunas',
+    panelName: 'Las Tunas',
+    terms: ['"Las Tunas"'],
+    provincialOutlet: { name: 'Periódico 26 (Las Tunas)', url: 'https://periodico26.cu/index.php/es' },
+  },
+  {
+    key: 'holguin',
+    panelName: 'Holguín',
+    terms: ['Holguín', 'Holguin'],
+    provincialOutlet: { name: 'Ahora (Holguín)', url: 'https://www.ahora.cu/es' },
+  },
+  {
+    key: 'granma',
+    panelName: 'Granma',
+    terms: ['Granma'],
+    provincialOutlet: { name: 'La Demajagua (Granma)', url: 'https://lademajagua.cu' },
+  },
+  {
+    key: 'santiagoDeCuba',
+    panelName: 'Santiago de Cuba',
+    terms: ['"Santiago de Cuba"'],
+    provincialOutlet: { name: 'Sierra Maestra (Santiago de Cuba)', url: 'https://www.sierramaestra.cu' },
+  },
+  {
+    key: 'guantanamo',
+    panelName: 'Guantánamo',
+    terms: ['Guantánamo', 'Guantanamo'],
+    provincialOutlet: { name: 'Venceremos (Guantánamo)', url: 'https://www.venceremos.cu' },
+  },
+];
+
+const CUBA_PROVINCIAL_FEEDS: Record<string, Feed[]> = Object.fromEntries(
+  CUBA_PROVINCE_FEED_DEFINITIONS.map(({ key, panelName, terms, provincialOutlet }) => {
+    const locationQuery = terms.join(' OR ');
+    const query = `(${locationQuery}) AND (Cuba OR cubano OR cubana OR Habana OR Havana) when:10d`;
+    const provinceNewsUrl = googleNewsRssPlain(query, 'es-419', 'US', 'US:es-419');
+    const provinceFeeds: Feed[] = [];
+
+    if (provincialOutlet) {
+      provinceFeeds.push({
+        name: provincialOutlet.name,
+        url: railwayRss(provincialOutlet.url),
+        fallbackUrls: [provinceNewsUrl],
+      });
+    }
+
+    provinceFeeds.push({
+      name: `${panelName} Noticias`,
+      url: provinceNewsUrl,
+    });
+
+    return [
+      key,
+      provinceFeeds,
+    ];
+  }),
+);
+
 const FULL_FEEDS: Record<string, Feed[]> = {
   politics: [
     { name: 'BBC World', url: rss('https://feeds.bbci.co.uk/news/world/rss.xml') },
@@ -743,7 +864,8 @@ const FULL_FEEDS: Record<string, Feed[]> = {
       url: railwayRss('https://www.prensalatina.cu/feed'),
       fallbackUrls: [googleNewsRss('(site:prensalatina.cu+OR+site:prensa-latina.cu+OR+"Prensa+Latina")+when:3d', 'es-419', 'US', 'US:es-419')],
     },
-  ]
+  ],
+  ...CUBA_PROVINCIAL_FEEDS,
 };
 
 // Tech/AI variant feeds
