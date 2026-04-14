@@ -2017,10 +2017,11 @@ export class App {
     this.newsPanels['gov'] = govPanel;
     this.panels['gov'] = govPanel;
 
-    const intelPanel = new NewsPanel('intel', t('panels.intel'));
-    this.attachRelatedAssetHandlers(intelPanel);
-    this.newsPanels['intel'] = intelPanel;
-    this.panels['intel'] = intelPanel;
+    // Desactivado por solicitud: panel de feed de inteligencia.
+    // const intelPanel = new NewsPanel('intel', t('panels.intel'));
+    // this.attachRelatedAssetHandlers(intelPanel);
+    // this.newsPanels['intel'] = intelPanel;
+    // this.panels['intel'] = intelPanel;
 
     // Panel desactivado temporalmente:
     // const cryptoPanel = new CryptoPanel();
@@ -2164,8 +2165,9 @@ export class App {
 
     // Geopolitical-only panels (not needed for tech variant)
     if (SITE_VARIANT === 'full') {
-      const gdeltIntelPanel = new GdeltIntelPanel();
-      this.panels['gdelt-intel'] = gdeltIntelPanel;
+      // Desactivado por solicitud: panel de inteligencia en vivo (GDELT).
+      // const gdeltIntelPanel = new GdeltIntelPanel();
+      // this.panels['gdelt-intel'] = gdeltIntelPanel;
 
       const ciiPanel = new CIIPanel();
       ciiPanel.setShareStoryHandler((code, name) => {
@@ -2173,18 +2175,20 @@ export class App {
       });
       this.panels['cii'] = ciiPanel;
 
-      const cascadePanel = new CascadePanel();
-      this.panels['cascade'] = cascadePanel;
+      // Desactivado por solicitud: panel de cascada de infraestructura.
+      // const cascadePanel = new CascadePanel();
+      // this.panels['cascade'] = cascadePanel;
 
       // Panel desactivado temporalmente:
       // const satelliteFiresPanel = new SatelliteFiresPanel();
       // this.panels['satellite-fires'] = satelliteFiresPanel;
 
-      const strategicRiskPanel = new StrategicRiskPanel();
-      strategicRiskPanel.setLocationClickHandler((lat, lon) => {
-        this.map?.setCenter(lat, lon, 4);
-      });
-      this.panels['strategic-risk'] = strategicRiskPanel;
+      // Desactivado por solicitud: panel de visión general de riesgo estratégico.
+      // const strategicRiskPanel = new StrategicRiskPanel();
+      // strategicRiskPanel.setLocationClickHandler((lat, lon) => {
+      //   this.map?.setCenter(lat, lon, 4);
+      // });
+      // this.panels['strategic-risk'] = strategicRiskPanel;
 
       const strategicPosturePanel = new StrategicPosturePanel();
       strategicPosturePanel.setLocationClickHandler((lat, lon) => {
@@ -2207,11 +2211,12 @@ export class App {
       // });
       // this.panels['displacement'] = displacementPanel;
 
-      const climatePanel = new ClimateAnomalyPanel();
-      climatePanel.setZoneClickHandler((lat, lon) => {
-        this.map?.setCenter(lat, lon, 4);
-      });
-      this.panels['climate'] = climatePanel;
+      // Desactivado por solicitud: panel de anomalías climáticas.
+      // const climatePanel = new ClimateAnomalyPanel();
+      // climatePanel.setZoneClickHandler((lat, lon) => {
+      //   this.map?.setCenter(lat, lon, 4);
+      // });
+      // this.panels['climate'] = climatePanel;
 
       // Panel desactivado temporalmente:
       // const populationExposurePanel = new PopulationExposurePanel();
