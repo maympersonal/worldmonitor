@@ -949,7 +949,25 @@ vercel dev                    # Starts on http://localhost:3000
 
 > **Important**: Use `vercel dev` instead of `npm run dev`. The Vercel CLI emulates the edge runtime locally so all `api/` endpoints work. Plain `npm run dev` only starts Vite and the API layer won't be available.
 
-### Option 3: Static Frontend Only
+### Option 3: Local Development Without Vercel CLI
+
+To run frontend + local API handlers without `vercel dev`:
+
+```bash
+cp .env.example .env.local
+npm run dev:local             # Starts Vite on http://localhost:3000
+# npm run dev:local:tech      # Tech variant
+# npm run dev:local:finance   # Finance variant
+```
+
+This command starts:
+
+- Vite dev server (`http://0.0.0.0:3000`)
+- Local API sidecar (`http://127.0.0.1:46123`)
+
+All `/api/*` routes are proxied to the local sidecar so RSS/news feeds and API-backed panels work without Vercel CLI.
+
+### Option 4: Static Frontend Only
 
 If you only want the map and client-side features (no news feeds, no AI, no market data):
 
@@ -964,9 +982,9 @@ This runs the frontend without the API layer. Panels that require server-side pr
 | Platform | Status | Notes |
 |----------|--------|-------|
 | **Vercel** | Full support | Recommended deployment target |
-| **Linux x86_64** | Works with `vercel dev` | Full local development |
-| **macOS** | Works with `vercel dev` | Full local development |
-| **Raspberry Pi / ARM** | Partial | `vercel dev` edge runtime emulation may not work on ARM. Use Option 1 (deploy to Vercel) or Option 3 (static frontend) instead |
+| **Linux x86_64** | Works with `vercel dev` and `npm run dev:local` | Full local development |
+| **macOS** | Works with `vercel dev` and `npm run dev:local` | Full local development |
+| **Raspberry Pi / ARM** | Partial | `vercel dev` edge runtime emulation may not work on ARM. Use Option 1 (deploy to Vercel), Option 3 (`npm run dev:local`), or Option 4 (static frontend) instead |
 | **Docker** | Planned | See [Roadmap](#roadmap) |
 
 ### Railway Relay (Optional)

@@ -5,6 +5,9 @@ import pkg from './package.json';
 
 const isE2E = process.env.VITE_E2E === '1';
 const isDesktopRuntime = process.env.VITE_DESKTOP_RUNTIME === '1';
+const shouldOpenBrowser = process.env.VITE_OPEN_BROWSER !== '0';
+const useLocalApiProxy = process.env.VITE_USE_LOCAL_API === '1';
+const localApiProxyTarget = process.env.VITE_LOCAL_API_TARGET || 'http://127.0.0.1:46123';
 
 const VARIANT_META: Record<string, {
   title: string;
@@ -339,7 +342,7 @@ export default defineConfig({
   },
   server: {
     port: 3000,
-    open: !isE2E,
+    open: !isE2E && shouldOpenBrowser,
     hmr: isE2E ? false : undefined,
     watch: {
       ignored: [
@@ -349,6 +352,22 @@ export default defineConfig({
       ],
     },
     proxy: {
+      ...(useLocalApiProxy
+        ? {
+          // Local no-Vercel mode: route all /api requests through the local sidecar.
+          '/api': {
+            target: localApiProxyTarget,
+            changeOrigin: true,
+            secure: false,
+            timeout: 30000,
+            configure: (proxy: import('http-proxy').Server) => {
+              proxy.on('error', (err: Error) => {
+                console.log('Local API proxy error:', err.message);
+              });
+            },
+          },
+        }
+        : {}),
       
       // Yahoo Finance API
       '/api/yahoo-finance': {

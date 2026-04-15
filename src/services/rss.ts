@@ -361,10 +361,22 @@ function shouldTryFallback(error: unknown): boolean {
   if (status === 403 || status === 429 || status === 502 || status === 503 || status === 504) {
     return true;
   }
+  if (isTimeoutError(error)) {
+    return true;
+  }
   if (isParseError(error)) {
     return true;
   }
   return isBlockedError(error);
+}
+
+function isTimeoutError(error: unknown): boolean {
+  return Boolean(
+    error
+    && typeof error === 'object'
+    && 'name' in error
+    && (error as { name?: string }).name === 'TimeoutError'
+  );
 }
 
 function isParseError(error: unknown): boolean {
@@ -525,7 +537,16 @@ export async function fetchFeed(feed: Feed): Promise<NewsItem[]> {
           });
         const filteredCandidates = parsedCandidates
           .filter(({ item, snippet }) => shouldKeepCubaScopedHeadline(feed.name, item.title, snippet));
-        const parsed = filteredCandidates
+
+        let effectiveCandidates = filteredCandidates;
+        if (hasScopedCubaFilter && filteredCandidates.length === 0 && parsedCandidates.length > 0) {
+          // Defensive fallback: avoid rendering empty Cuba-scoped panels when
+          // upstream headlines are valid but wording misses strict regex gates.
+          effectiveCandidates = parsedCandidates;
+          console.warn(`[RSS] ${feed.name} strict Cuba filter yielded 0 items; using unfiltered fallback`);
+        }
+
+        const parsed = effectiveCandidates
           .slice(0, 5)
           .map(({ item }) => item);
 

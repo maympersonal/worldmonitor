@@ -6,6 +6,9 @@
   "scripts": {
     "lint:md": "markdownlint-cli2 '**/*.md'",
     "dev": "vite",
+    "dev:local": "node scripts/dev-local.mjs",
+    "dev:local:tech": "node scripts/dev-local.mjs --variant tech",
+    "dev:local:finance": "node scripts/dev-local.mjs --variant finance",
     "dev:tech": "VITE_VARIANT=tech vite",
     "dev:finance": "VITE_VARIANT=finance vite",
     "build": "tsc && vite build",

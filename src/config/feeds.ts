@@ -480,21 +480,24 @@ const CUBA_PROVINCE_FEED_DEFINITIONS: CubaProvinceFeedDefinition[] = [
 const CUBA_PROVINCIAL_FEEDS: Record<string, Feed[]> = Object.fromEntries(
   CUBA_PROVINCE_FEED_DEFINITIONS.map(({ key, panelName, terms, provincialOutlet }) => {
     const locationQuery = terms.join(' OR ');
-    const query = `(${locationQuery}) AND (Cuba OR cubano OR cubana OR Habana OR Havana) when:10d`;
-    const provinceNewsUrl = googleNewsRssPlain(query, 'es-419', 'US', 'US:es-419');
+    const queryRecent = `(${locationQuery}) AND (Cuba OR cubano OR cubana OR Habana OR Havana) when:10d`;
+    const queryExtended = `(${locationQuery}) AND (Cuba OR cubano OR cubana OR Habana OR Havana) when:30d`;
+    const provinceNewsUrl = googleNewsRssPlain(queryRecent, 'es-419', 'US', 'US:es-419');
+    const provinceNewsFallbackUrl = googleNewsRssPlain(queryExtended, 'es-419', 'US', 'US:es-419');
     const provinceFeeds: Feed[] = [];
 
     if (provincialOutlet) {
       provinceFeeds.push({
         name: provincialOutlet.name,
         url: railwayRss(provincialOutlet.url),
-        fallbackUrls: [provinceNewsUrl],
+        fallbackUrls: [provinceNewsUrl, provinceNewsFallbackUrl],
       });
     }
 
     provinceFeeds.push({
       name: `${panelName} Noticias`,
       url: provinceNewsUrl,
+      fallbackUrls: [provinceNewsFallbackUrl],
     });
 
     return [

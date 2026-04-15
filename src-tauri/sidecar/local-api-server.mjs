@@ -241,6 +241,12 @@ const failedImports = new Set();
 const fallbackCounts = new Map();
 const cloudPreferred = new Set();
 
+function canPersistCloudPreference(pathname) {
+  // RSS proxy failures are feed-specific (query string carries the upstream URL).
+  // Persisting by pathname would incorrectly force all RSS requests to cloud.
+  return pathname !== '/api/rss-proxy';
+}
+
 const TRAFFIC_LOG_MAX = 200;
 const trafficLog = [];
 let verboseMode = false;
@@ -768,7 +774,9 @@ async function dispatch(requestUrl, req, routes, context) {
     }
   }
 
-  if (context.cloudFallback && cloudPreferred.has(requestUrl.pathname)) {
+  const persistCloudPreference = canPersistCloudPreference(requestUrl.pathname);
+
+  if (context.cloudFallback && persistCloudPreference && cloudPreferred.has(requestUrl.pathname)) {
     const cloudResponse = await tryCloudFallback(requestUrl, req, context);
     if (cloudResponse) return cloudResponse;
   }
@@ -813,7 +821,10 @@ async function dispatch(requestUrl, req, routes, context) {
 
     if (!response.ok && context.cloudFallback) {
       const cloudResponse = await tryCloudFallback(requestUrl, req, context, `local status ${response.status}`);
-      if (cloudResponse) { cloudPreferred.add(requestUrl.pathname); return cloudResponse; }
+      if (cloudResponse) {
+        if (persistCloudPreference) cloudPreferred.add(requestUrl.pathname);
+        return cloudResponse;
+      }
     }
 
     return response;
@@ -822,7 +833,10 @@ async function dispatch(requestUrl, req, routes, context) {
     context.logger.error(`[local-api] ${requestUrl.pathname} → ${reason}`);
     if (context.cloudFallback) {
       const cloudResponse = await tryCloudFallback(requestUrl, req, context, error);
-      if (cloudResponse) { cloudPreferred.add(requestUrl.pathname); return cloudResponse; }
+      if (cloudResponse) {
+        if (persistCloudPreference) cloudPreferred.add(requestUrl.pathname);
+        return cloudResponse;
+      }
     }
     return json({ error: 'Local handler error', reason, endpoint: requestUrl.pathname }, 502);
   }

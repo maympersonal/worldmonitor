@@ -98,6 +98,19 @@ import { initI18n, t, changeLanguage, getCurrentLanguage, LANGUAGES } from '@/se
 
 import type { PredictionMarket, MarketData, ClusteredEvent } from '@/types';
 
+// Keep intentionally disabled features type-checked without enabling runtime execution.
+const DISABLED_FEATURE_REFERENCES = {
+  enrichEventsWithExposure,
+  GdeltIntelPanel,
+  CascadePanel,
+  StrategicRiskPanel,
+  MacroSignalsPanel,
+  ETFFlowsPanel,
+  StablecoinPanel,
+  PopulationExposurePanel,
+};
+void DISABLED_FEATURE_REFERENCES;
+
 type IntlDisplayNamesCtor = new (
   locales: string | string[],
   options: { type: 'region' }
@@ -166,6 +179,10 @@ export class App {
   private disabledSources: Set<string> = new Set();
   private mapFlashCache: Map<string, number> = new Map();
   private readonly MAP_FLASH_COOLDOWN_MS = 10 * 60 * 1000;
+  private readonly INITIAL_LOAD_TASK_TIMEOUT_MS = 90_000;
+  private readonly MANUAL_LAYER_LOAD_TIMEOUT_MS = 90_000;
+  private readonly REFRESH_TIMEOUT_MIN_MS = 45_000;
+  private readonly REFRESH_TIMEOUT_MAX_MS = 4 * 60 * 1000;
   private initialLoadComplete = false;
   private criticalBannerEl: HTMLElement | null = null;
   private countryBriefPage: CountryBriefPage | null = null;
@@ -351,6 +368,14 @@ export class App {
     this.pendingDeepLinkCountry = initState.country ?? null;
     this.setupUrlStateSync();
     this.syncDataFreshnessWithLayers();
+    // Keep disabled loader methods referenced for TS noUnusedLocals.
+    void this.setupPizzIntIndicator;
+    void this.loadPizzInt;
+    void this.loadMarkets;
+    void this.loadPredictions;
+    void this.loadFredData;
+    void this.loadOilAnalytics;
+    void this.loadGovernmentSpending;
     await preloadCountryGeometry();
     await this.loadAllData();
 
@@ -2932,12 +2957,51 @@ export class App {
       : '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.79A9 9 0 1111.21 3 7 7 0 0021 12.79z"/></svg>';
   }
 
+  private getRefreshTimeoutMs(intervalMs: number): number {
+    const scaled = Math.round(intervalMs * 0.8);
+    return Math.max(
+      this.REFRESH_TIMEOUT_MIN_MS,
+      Math.min(this.REFRESH_TIMEOUT_MAX_MS, scaled)
+    );
+  }
+
+  private async runTaskWithTimeout<T>(
+    label: string,
+    task: () => Promise<T>,
+    timeoutMs: number
+  ): Promise<T> {
+    let timeoutId: ReturnType<typeof setTimeout> | null = null;
+    let timedOut = false;
+    try {
+      return await Promise.race([
+        Promise.resolve().then(task),
+        new Promise<T>((_, reject) => {
+          timeoutId = setTimeout(() => {
+            timedOut = true;
+            const error = new Error(`${label} timed out after ${Math.round(timeoutMs / 1000)}s`);
+            error.name = 'TaskTimeoutError';
+            reject(error);
+          }, timeoutMs);
+        }),
+      ]);
+    } finally {
+      if (timeoutId !== null) clearTimeout(timeoutId);
+      if (timedOut) {
+        console.warn(`[App] ${label} timed out after ${Math.round(timeoutMs / 1000)}s`);
+      }
+    }
+  }
+
   private async loadAllData(): Promise<void> {
     const runGuarded = async (name: string, fn: () => Promise<void>): Promise<void> => {
       if (this.inFlight.has(name)) return;
       this.inFlight.add(name);
       try {
-        await fn();
+        await this.runTaskWithTimeout(
+          `initial:${name}`,
+          fn,
+          this.INITIAL_LOAD_TASK_TIMEOUT_MS
+        );
       } catch (e) {
         console.error(`[App] ${name} failed:`, e);
       } finally {
@@ -3001,48 +3065,50 @@ export class App {
     this.inFlight.add(layer);
     this.map?.setLayerLoading(layer, true);
     try {
-      switch (layer) {
-        case 'natural':
-          await this.loadNatural();
-          break;
-        case 'fires':
-          await this.loadFirmsData();
-          break;
-        case 'weather':
-          await this.loadWeatherAlerts();
-          break;
-        case 'outages':
-          await this.loadOutages();
-          break;
-        case 'cyberThreats':
-          await this.loadCyberThreats();
-          break;
-        case 'ais':
-          await this.loadAisSignals();
-          break;
-        case 'cables':
-          await this.loadCableActivity();
-          break;
-        case 'protests':
-          await this.loadProtests();
-          break;
-        case 'flights':
-          await this.loadFlightDelays();
-          break;
-        case 'military':
-          await this.loadMilitary();
-          break;
-        case 'techEvents':
-          console.log('[loadDataForLayer] Loading techEvents...');
-          await this.loadTechEvents();
-          console.log('[loadDataForLayer] techEvents loaded');
-          break;
-        case 'ucdpEvents':
-        case 'displacement':
-        case 'climate':
-          await this.loadIntelligenceSignals();
-          break;
-      }
+      await this.runTaskWithTimeout(`layer:${layer}`, async () => {
+        switch (layer) {
+          case 'natural':
+            await this.loadNatural();
+            break;
+          case 'fires':
+            await this.loadFirmsData();
+            break;
+          case 'weather':
+            await this.loadWeatherAlerts();
+            break;
+          case 'outages':
+            await this.loadOutages();
+            break;
+          case 'cyberThreats':
+            await this.loadCyberThreats();
+            break;
+          case 'ais':
+            await this.loadAisSignals();
+            break;
+          case 'cables':
+            await this.loadCableActivity();
+            break;
+          case 'protests':
+            await this.loadProtests();
+            break;
+          case 'flights':
+            await this.loadFlightDelays();
+            break;
+          case 'military':
+            await this.loadMilitary();
+            break;
+          case 'techEvents':
+            console.log('[loadDataForLayer] Loading techEvents...');
+            await this.loadTechEvents();
+            console.log('[loadDataForLayer] techEvents loaded');
+            break;
+          case 'ucdpEvents':
+          case 'displacement':
+          case 'climate':
+            await this.loadIntelligenceSignals();
+            break;
+        }
+      }, this.MANUAL_LAYER_LOAD_TIMEOUT_MS);
     } finally {
       this.inFlight.delete(layer);
       this.map?.setLayerLoading(layer, false);
@@ -3784,6 +3850,7 @@ export class App {
           id: e.id, lat: e.latitude, lon: e.longitude, type: e.type_of_violence as string, name: `${e.side_a} vs ${e.side_b}`,
         })),
       ];
+      void events;
       // Panel desactivado temporalmente:
       // if (events.length > 0) {
       //   const exposures = await enrichEventsWithExposure(events);
@@ -4379,7 +4446,11 @@ export class App {
       }
       this.inFlight.add(name);
       try {
-        await fn();
+        await this.runTaskWithTimeout(
+          `refresh:${name}`,
+          fn,
+          this.getRefreshTimeoutMs(intervalMs)
+        );
       } catch (e) {
         console.error(`[App] Refresh ${name} failed:`, e);
       } finally {
