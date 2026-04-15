@@ -219,10 +219,13 @@ export class App {
       this.panelSettings = { ...DEFAULT_PANELS };
     } else {
       this.mapLayers = loadFromStorage<MapLayers>(STORAGE_KEYS.mapLayers, defaultLayers);
-      this.panelSettings = loadFromStorage<Record<string, PanelConfig>>(
-        STORAGE_KEYS.panels,
-        DEFAULT_PANELS
-      );
+      this.panelSettings = {
+        ...DEFAULT_PANELS,
+        ...loadFromStorage<Record<string, PanelConfig>>(
+          STORAGE_KEYS.panels,
+          DEFAULT_PANELS
+        ),
+      };
       console.log('[App] Loaded panel settings from storage:', Object.entries(this.panelSettings).filter(([_, v]) => !v.enabled).map(([k]) => k));
 
       // One-time migration: reorder panels for existing users (v1.9 panel layout)
@@ -2041,6 +2044,11 @@ export class App {
     this.attachRelatedAssetHandlers(govPanel);
     this.newsPanels['gov'] = govPanel;
     this.panels['gov'] = govPanel;
+
+    const culturePanel = new NewsPanel('culture', t('panels.culture'));
+    this.attachRelatedAssetHandlers(culturePanel);
+    this.newsPanels['culture'] = culturePanel;
+    this.panels['culture'] = culturePanel;
 
     // Desactivado por solicitud: panel de feed de inteligencia.
     // const intelPanel = new NewsPanel('intel', t('panels.intel'));

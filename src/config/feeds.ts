@@ -826,6 +826,44 @@ const FULL_FEEDS: Record<string, Feed[]> = {
     // },
     // { name: 'CISA', url: railwayRss('https://www.cisa.gov/cybersecurity-advisories/all.xml') },
   ],
+  culture: [
+    {
+      name: 'Cultura Cubana (ES)',
+      url: googleNewsRssPlain(
+        '(Cuba OR Habana OR Havana OR cubano OR cubana) AND (cultura OR arte OR musica OR cine OR literatura OR teatro OR danza OR patrimonio OR museo OR festival) when:7d',
+        'es-419',
+        'US',
+        'US:es-419',
+      ),
+    },
+    {
+      name: 'Cuban Culture (EN)',
+      url: googleNewsRssPlain(
+        '(Cuba OR Havana OR Habana OR cuban) AND (culture OR arts OR music OR film OR cinema OR literature OR theater OR dance OR heritage OR museum OR festival) when:7d',
+        'en-US',
+        'US',
+        'US:en',
+      ),
+    },
+    {
+      name: 'MINCULT Cuba',
+      url: googleNewsRssPlain(
+        '(site:mincult.gob.cu OR MINCULT OR "Ministerio de Cultura de Cuba") AND (cultura OR arte OR musica OR cine OR literatura OR teatro OR danza OR patrimonio) when:7d',
+        'es-419',
+        'US',
+        'US:es-419',
+      ),
+    },
+    {
+      name: 'Cuban Arts & Heritage (EN)',
+      url: googleNewsRssPlain(
+        '(Cuba OR Havana OR Habana OR "Ministry of Culture of Cuba" OR MINCULT) AND (arts OR culture OR music OR film OR literature OR theater OR dance OR heritage OR museum OR festival) when:7d',
+        'en-US',
+        'US',
+        'US:en',
+      ),
+    },
+  ],
   layoffs: [
     { name: 'Layoffs.fyi', url: rss('https://layoffs.fyi/feed/') },
     { name: 'TechCrunch Layoffs', url: rss('https://techcrunch.com/tag/layoffs/feed/') },
@@ -893,19 +931,19 @@ const FULL_FEEDS: Record<string, Feed[]> = {
     { name: 'Reuters Asia', url: rss('https://news.google.com/rss/search?q=site:reuters.com+(China+OR+Japan+OR+Taiwan+OR+Korea)+when:3d&hl=en-US&gl=US&ceid=US:en') },
     {
       name: 'NHK World',
-      url: railwayRss('https://rsshub.app/nhk/news/en'),
-      fallbackUrls: [googleNewsRss('(site:nhk.or.jp+OR+"NHK+World")+when:3d')],
+      url: googleNewsRss('(site:nhk.or.jp+OR+"NHK+World")+when:7d'),
+      fallbackUrls: [railwayRss('https://rsshub.app/nhk/news/en')],
     },
     { name: 'Nikkei Asia', url: rss('https://news.google.com/rss/search?q=site:asia.nikkei.com+when:3d&hl=en-US&gl=US&ceid=US:en') },
     {
       name: 'MIIT (China)',
-      url: railwayRss('https://rsshub.app/gov/miit/zcjd'),
-      fallbackUrls: [googleNewsRss('(site:miit.gov.cn+OR+MIIT+China)+when:7d')],
+      url: googleNewsRss('(site:miit.gov.cn+OR+MIIT+China)+when:7d'),
+      fallbackUrls: [railwayRss('https://rsshub.app/gov/miit/zcjd')],
     },
     {
       name: 'MOFCOM (China)',
-      url: railwayRss('https://rsshub.app/gov/mofcom/article/xwfb'),
-      fallbackUrls: [googleNewsRss('(site:mofcom.gov.cn+OR+MOFCOM+China)+when:7d')],
+      url: googleNewsRss('(site:mofcom.gov.cn+OR+MOFCOM+China)+when:7d'),
+      fallbackUrls: [railwayRss('https://rsshub.app/gov/mofcom/article/xwfb')],
     },
   ],
   energy: [
@@ -986,8 +1024,8 @@ const FULL_FEEDS: Record<string, Feed[]> = {
   cuba: [
     {
       name: 'Cubadebate',
-      url: railwayRss('https://www.cubadebate.cu/feed'),
-      fallbackUrls: [googleNewsRss('(site:cubadebate.cu+OR+"Cubadebate")+when:3d', 'es-419', 'US', 'US:es-419')],
+      url: googleNewsRss('(site:cubadebate.cu+OR+"Cubadebate")+when:7d', 'es-419', 'US', 'US:es-419'),
+      fallbackUrls: [railwayRss('https://www.cubadebate.cu/feed')],
     },
     { name: 'Granma', url: rss('https://www.granma.cu/feed') },
     { name: 'JuventudRevelde', url: rss('https://www.juventudrebelde.cu/get/rss/grupo/generales') },
@@ -995,8 +1033,8 @@ const FULL_FEEDS: Record<string, Feed[]> = {
     { name: 'Tribuna', url: rss('https://www.trabajadores.cu/feed') },
     {
       name: 'PrensaLatina',
-      url: railwayRss('https://www.prensalatina.cu/feed'),
-      fallbackUrls: [googleNewsRss('(site:prensalatina.cu+OR+site:prensa-latina.cu+OR+"Prensa+Latina")+when:3d', 'es-419', 'US', 'US:es-419')],
+      url: googleNewsRss('(site:prensalatina.cu+OR+site:prensa-latina.cu+OR+"Prensa+Latina")+when:7d', 'es-419', 'US', 'US:es-419'),
+      fallbackUrls: [railwayRss('https://www.prensalatina.cu/feed')],
     },
   ],
   ...CUBA_PROVINCIAL_FEEDS,
@@ -1322,8 +1360,8 @@ export const INTEL_SOURCES: Feed[] = [
   { name: 'Defense One', url: rss('https://www.defenseone.com/rss/all/'), type: 'defense' },
   {
     name: 'Breaking Defense',
-    url: railwayRss('https://breakingdefense.com/feed/'),
-    fallbackUrls: [googleNewsRss('site:breakingdefense.com+when:7d')],
+    url: googleNewsRss('site:breakingdefense.com+when:7d'),
+    fallbackUrls: [railwayRss('https://breakingdefense.com/feed/')],
     type: 'defense',
   },
   { name: 'The War Zone', url: rss('https://news.google.com/rss/search?q=site:thedrive.com+"war+zone"+when:7d&hl=en-US&gl=US&ceid=US:en'), type: 'defense' },
@@ -1346,8 +1384,8 @@ export const INTEL_SOURCES: Feed[] = [
   { name: 'FAS', url: rss('https://fas.org/feed/'), type: 'research' },
   {
     name: 'NTI',
-    url: railwayRss('https://www.nti.org/rss/'),
-    fallbackUrls: [googleNewsRss('site:nti.org+(nuclear+OR+missile+OR+proliferation)+when:7d')],
+    url: googleNewsRss('site:nti.org+(nuclear+OR+missile+OR+proliferation)+when:7d'),
+    fallbackUrls: [railwayRss('https://www.nti.org/rss/')],
     type: 'research',
   },
   { name: 'RUSI', url: rss('https://news.google.com/rss/search?q=site:rusi.org+when:7d&hl=en-US&gl=US&ceid=US:en'), type: 'research' },

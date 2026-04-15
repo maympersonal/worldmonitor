@@ -72,6 +72,12 @@ const CUBA_ENERGY_FILTER_FEED_NAMES = new Set([
   'Minería y Recursos Naturales (Cuba)',
   'Mining & Natural Resources (Cuba)',
 ]);
+const CUBA_CULTURE_FILTER_FEED_NAMES = new Set([
+  'Cultura Cubana (ES)',
+  'Cuban Culture (EN)',
+  'MINCULT Cuba',
+  'Cuban Arts & Heritage (EN)',
+]);
 const CUBA_CONTEXT_RE = /\b(cuba|habana|havana|cuban|cubano|cubana|etecsa)\b/i;
 const CUBA_TECH_TOPICAL_RE =
   /\b(tecnolog(?:ia|ias|ico|ica|icos|icas)|tecnolog[ií]as?|technology|technologies|digitalizaci[oó]n|digitalization|software|inform[aá]tica|informatizaci[oó]n|transformaci[oó]n digital|digital transformation|tic|ict|inteligencia artificial|artificial intelligence|ia|ai|app(?:s)?|aplicaciones?)\b/i;
@@ -105,6 +111,10 @@ const CUBA_ENERGY_MINING_TOPICAL_RE =
   /\b(recursos naturales|natural resources|miner[ií]a|mining|industria extractiva|extractive|mineral(?:es)?|minerals?|n[ií]quel|nickel|cobalto|cobalt|litio|lithium|tierras raras|rare earth|rare-earth|cobre|copper)\b/i;
 const CUBA_ENERGY_REUTERS_TOPICAL_RE =
   /\b(energ[ií]a|energy|petr[oó]leo|oil|gas|opec|opep|lng|nuclear|miner[ií]a|mining|recursos naturales|natural resources|mineral(?:es)?|minerals?)\b/i;
+const CUBA_CULTURE_TOPICAL_RE =
+  /\b(cultura|culture|arte|arts?|musica|music|cine|film|cinema|literatura|literature|teatro|theater|danza|dance|patrimonio|heritage|museo|museum|festival(?:es)?|artista(?:s)?|artist(?:s)?)\b/i;
+const CUBA_CULTURE_MINCULT_TOPICAL_RE =
+  /\b(mincult|mincult\.gob\.cu|ministerio de cultura(?: de cuba)?|ministry of culture(?: of cuba)?|cultura|culture|arte|arts?|musica|music|cine|film|literatura|literature|teatro|theater|danza|dance|patrimonio|heritage|museo|museum|festival(?:es)?)\b/i;
 const XML_BUILTIN_ENTITIES = new Set(['amp', 'lt', 'gt', 'quot', 'apos']);
 const HTML_ENTITY_TO_NUMERIC: Record<string, string> = {
   nbsp: '&#160;',
@@ -213,12 +223,23 @@ function shouldKeepCubaEnergyHeadline(feedName: string, title: string, snippet: 
   return CUBA_ENERGY_OIL_GAS_TOPICAL_RE.test(haystack);
 }
 
+function shouldKeepCubaCultureHeadline(feedName: string, title: string, snippet: string): boolean {
+  if (!CUBA_CULTURE_FILTER_FEED_NAMES.has(feedName)) return true;
+
+  const haystack = `${title} ${snippet}`;
+  if (feedName.includes('MINCULT')) {
+    return CUBA_CULTURE_MINCULT_TOPICAL_RE.test(haystack);
+  }
+  return CUBA_CULTURE_TOPICAL_RE.test(haystack);
+}
+
 function shouldKeepCubaScopedHeadline(feedName: string, title: string, snippet: string): boolean {
   return shouldKeepCubaTechHeadline(feedName, title, snippet)
     && shouldKeepCubaGovHeadline(feedName, title, snippet)
     && shouldKeepCubaFinanceHeadline(feedName, title, snippet)
     && shouldKeepCubaAiHeadline(feedName, title, snippet)
-    && shouldKeepCubaEnergyHeadline(feedName, title, snippet);
+    && shouldKeepCubaEnergyHeadline(feedName, title, snippet)
+    && shouldKeepCubaCultureHeadline(feedName, title, snippet);
 }
 
 function isCubaScopedFeed(feedName: string): boolean {
@@ -226,7 +247,8 @@ function isCubaScopedFeed(feedName: string): boolean {
     || CUBA_GOV_FILTER_FEED_NAMES.has(feedName)
     || CUBA_FINANCE_FILTER_FEED_NAMES.has(feedName)
     || CUBA_AI_FILTER_FEED_NAMES.has(feedName)
-    || CUBA_ENERGY_FILTER_FEED_NAMES.has(feedName);
+    || CUBA_ENERGY_FILTER_FEED_NAMES.has(feedName)
+    || CUBA_CULTURE_FILTER_FEED_NAMES.has(feedName);
 }
 
 function toSerializable(items: NewsItem[]): Array<Omit<NewsItem, 'pubDate'> & { pubDate: string }> {

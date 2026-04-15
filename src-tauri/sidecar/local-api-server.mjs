@@ -247,6 +247,15 @@ function canPersistCloudPreference(pathname) {
   return pathname !== '/api/rss-proxy';
 }
 
+function shouldTryCloudForLocalStatus(pathname, status) {
+  // For RSS proxy, 4xx usually comes from upstream blocking/challenges and
+  // retrying against cloud often yields the same result with extra noise.
+  if (pathname === '/api/rss-proxy' && status >= 400 && status < 500) {
+    return false;
+  }
+  return status >= 400;
+}
+
 const TRAFFIC_LOG_MAX = 200;
 const trafficLog = [];
 let verboseMode = false;
@@ -819,7 +828,7 @@ async function dispatch(requestUrl, req, routes, context) {
       return json({ error: 'Handler returned invalid response', endpoint: requestUrl.pathname }, 500);
     }
 
-    if (!response.ok && context.cloudFallback) {
+    if (!response.ok && context.cloudFallback && shouldTryCloudForLocalStatus(requestUrl.pathname, response.status)) {
       const cloudResponse = await tryCloudFallback(requestUrl, req, context, `local status ${response.status}`);
       if (cloudResponse) {
         if (persistCloudPreference) cloudPreferred.add(requestUrl.pathname);

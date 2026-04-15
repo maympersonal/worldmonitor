@@ -31,6 +31,7 @@ export const DEFAULT_PANELS: Record<string, PanelConfig> = {
   asia: { name: 'Asia-Pacific', enabled: true, priority: 1 },
   energy: { name: 'Energy & Resources', enabled: true, priority: 1 },
   gov: { name: 'Government', enabled: true, priority: 1 },
+  culture: { name: 'Cuban Culture', enabled: true, priority: 1 },
   thinktanks: { name: 'Think Tanks', enabled: true, priority: 1 },
   polymarket: { name: 'Predictions', enabled: true, priority: 1 },
   commodities: { name: 'Commodities', enabled: true, priority: 1 },
