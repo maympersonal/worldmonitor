@@ -1,27 +1,28 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
+use std::env;
 use std::fs::{self, File, OpenOptions};
 use std::io::Write;
+#[cfg(windows)]
+use std::os::windows::process::CommandExt;
 use std::path::{Path, PathBuf};
 use std::process::{Child, Command, Stdio};
 use std::sync::Mutex;
 use std::time::{SystemTime, UNIX_EPOCH};
-use std::env;
-#[cfg(windows)]
-use std::os::windows::process::CommandExt;
 
 use keyring::Entry;
 use reqwest::Url;
 use serde::Serialize;
 use serde_json::{Map, Value};
 use tauri::menu::{AboutMetadata, Menu, MenuItem, PredefinedMenuItem, Submenu};
-use tauri::{AppHandle, Manager, RunEvent, WindowEvent, WebviewUrl, WebviewWindowBuilder};
+use tauri::{AppHandle, Manager, RunEvent, WebviewUrl, WebviewWindowBuilder, WindowEvent};
 
 const LOCAL_API_PORT: &str = "46123";
 const KEYRING_SERVICE: &str = "world-monitor";
 const LOCAL_API_LOG_FILE: &str = "local-api.log";
 const DESKTOP_LOG_FILE: &str = "desktop.log";
 const MENU_FILE_SETTINGS_ID: &str = "file.settings";
+const MENU_FILE_CUBA_PROVINCES_ID: &str = "file.cuba_provinces";
 const MENU_HELP_GITHUB_ID: &str = "help.github";
 const MENU_HELP_DEVTOOLS_ID: &str = "help.devtools";
 const SUPPORTED_SECRET_KEYS: [&str; 18] = [
@@ -57,6 +58,130 @@ struct DesktopRuntimeInfo {
     arch: String,
 }
 
+#[derive(Clone, Copy)]
+struct CubaProvince {
+    id: &'static str,
+    name: &'static str,
+    lat: f64,
+    lon: f64,
+    zoom: f64,
+}
+
+const CUBA_PROVINCES: [CubaProvince; 16] = [
+    CubaProvince {
+        id: "pinar-del-rio",
+        name: "Pinar del Rio",
+        lat: 22.4120,
+        lon: -83.6710,
+        zoom: 8.90,
+    },
+    CubaProvince {
+        id: "artemisa",
+        name: "Artemisa",
+        lat: 22.8160,
+        lon: -82.7610,
+        zoom: 9.10,
+    },
+    CubaProvince {
+        id: "la-habana",
+        name: "La Habana",
+        lat: 23.1136,
+        lon: -82.3666,
+        zoom: 9.50,
+    },
+    CubaProvince {
+        id: "mayabeque",
+        name: "Mayabeque",
+        lat: 22.9640,
+        lon: -82.1510,
+        zoom: 9.10,
+    },
+    CubaProvince {
+        id: "matanzas",
+        name: "Matanzas",
+        lat: 23.0410,
+        lon: -81.5770,
+        zoom: 8.90,
+    },
+    CubaProvince {
+        id: "cienfuegos",
+        name: "Cienfuegos",
+        lat: 22.1490,
+        lon: -80.4430,
+        zoom: 8.90,
+    },
+    CubaProvince {
+        id: "villa-clara",
+        name: "Villa Clara",
+        lat: 22.4060,
+        lon: -79.9650,
+        zoom: 8.90,
+    },
+    CubaProvince {
+        id: "sancti-spiritus",
+        name: "Sancti Spiritus",
+        lat: 21.9310,
+        lon: -79.4420,
+        zoom: 8.90,
+    },
+    CubaProvince {
+        id: "ciego-de-avila",
+        name: "Ciego de Avila",
+        lat: 21.8400,
+        lon: -78.7630,
+        zoom: 8.90,
+    },
+    CubaProvince {
+        id: "camaguey",
+        name: "Camaguey",
+        lat: 21.3800,
+        lon: -77.9160,
+        zoom: 8.90,
+    },
+    CubaProvince {
+        id: "las-tunas",
+        name: "Las Tunas",
+        lat: 20.9600,
+        lon: -76.9500,
+        zoom: 8.90,
+    },
+    CubaProvince {
+        id: "granma",
+        name: "Granma",
+        lat: 20.3810,
+        lon: -76.6430,
+        zoom: 8.90,
+    },
+    CubaProvince {
+        id: "holguin",
+        name: "Holguin",
+        lat: 20.8870,
+        lon: -76.2630,
+        zoom: 8.90,
+    },
+    CubaProvince {
+        id: "santiago-de-cuba",
+        name: "Santiago de Cuba",
+        lat: 20.0240,
+        lon: -75.8210,
+        zoom: 8.90,
+    },
+    CubaProvince {
+        id: "guantanamo",
+        name: "Guantanamo",
+        lat: 20.1450,
+        lon: -75.2090,
+        zoom: 8.90,
+    },
+    CubaProvince {
+        id: "isla-de-la-juventud",
+        name: "Isla de la Juventud",
+        lat: 21.8830,
+        lon: -82.8050,
+        zoom: 9.20,
+    },
+];
+
 fn secret_entry(key: &str) -> Result<Entry, String> {
     if !SUPPORTED_SECRET_KEYS.contains(&key) {
         return Err(format!("Unsupported secret key: {key}"));
@@ -87,7 +212,9 @@ fn get_local_api_token(state: tauri::State<'_, LocalApiState>) -> Result<String,
         .token
         .lock()
         .map_err(|_| "Failed to lock local API token".to_string())?;
-    token.clone().ok_or_else(|| "Token not generated".to_string())
+    token
+        .clone()
+        .ok_or_else(|| "Token not generated".to_string())
 }
 
 #[tauri::command]
@@ -100,7 +227,10 @@ fn get_desktop_runtime_info() -> DesktopRuntimeInfo {
 
 #[tauri::command]
 fn list_supported_secret_keys() -> Vec<String> {
-    SUPPORTED_SECRET_KEYS.iter().map(|key| (*key).to_string()).collect()
+    SUPPORTED_SECRET_KEYS
+        .iter()
+        .map(|key| (*key).to_string())
+        .collect()
 }
 
 #[tauri::command]
@@ -165,7 +295,8 @@ fn read_cache_entry(app: AppHandle, key: String) -> Result<Option<Value>, String
 
     let contents = std::fs::read_to_string(&path)
         .map_err(|e| format!("Failed to read cache store {}: {e}", path.display()))?;
-    let parsed: Value = serde_json::from_str(&contents).unwrap_or_else(|_| Value::Object(Map::new()));
+    let parsed: Value =
+        serde_json::from_str(&contents).unwrap_or_else(|_| Value::Object(Map::new()));
     let Some(root) = parsed.as_object() else {
         return Ok(None);
     };
@@ -188,8 +319,8 @@ fn write_cache_entry(app: AppHandle, key: String, value: String) -> Result<(), S
         Map::new()
     };
 
-    let parsed_value: Value = serde_json::from_str(&value)
-        .map_err(|e| format!("Invalid cache payload JSON: {e}"))?;
+    let parsed_value: Value =
+        serde_json::from_str(&value).map_err(|e| format!("Invalid cache payload JSON: {e}"))?;
     root.insert(key, parsed_value);
 
     let serialized = serde_json::to_string_pretty(&Value::Object(root))
@@ -310,9 +441,42 @@ async fn open_settings_window_command(app: AppHandle) -> Result<(), String> {
 }
 
 #[tauri::command]
+fn open_cuba_province_window_command(app: AppHandle, province_id: String) -> Result<(), String> {
+    let normalized = province_id
+        .trim()
+        .to_ascii_lowercase()
+        .replace('_', "-")
+        .replace(' ', "-");
+
+    let province = CUBA_PROVINCES
+        .iter()
+        .find(|candidate| candidate.id == normalized)
+        .ok_or_else(|| {
+            let supported = CUBA_PROVINCES
+                .iter()
+                .map(|p| p.id)
+                .collect::<Vec<_>>()
+                .join(", ");
+            format!("Unknown province_id '{province_id}'. Supported values: {supported}")
+        })?;
+
+    open_cuba_province_window(&app, province)
+}
+
+#[tauri::command]
+fn open_all_cuba_province_windows_command(app: AppHandle) -> Result<(), String> {
+    for province in CUBA_PROVINCES.iter() {
+        open_cuba_province_window(&app, province)?;
+    }
+    Ok(())
+}
+
+#[tauri::command]
 fn close_settings_window(app: AppHandle) -> Result<(), String> {
     if let Some(window) = app.get_webview_window("settings") {
-        window.close().map_err(|e| format!("Failed to close settings window: {e}"))?;
+        window
+            .close()
+            .map_err(|e| format!("Failed to close settings window: {e}"))?;
     }
     Ok(())
 }
@@ -341,7 +505,9 @@ async fn fetch_polymarket(path: String, params: String) -> Result<String, String
     if !resp.status().is_success() {
         return Err(format!("Polymarket HTTP {}", resp.status()));
     }
-    resp.text().await.map_err(|e| format!("Read body failed: {e}"))
+    resp.text()
+        .await
+        .map_err(|e| format!("Read body failed: {e}"))
 }
 
 fn open_settings_window(app: &AppHandle) -> Result<(), String> {
@@ -353,19 +519,50 @@ fn open_settings_window(app: &AppHandle) -> Result<(), String> {
         return Ok(());
     }
 
-    let _settings_window = WebviewWindowBuilder::new(app, "settings", WebviewUrl::App("settings.html".into()))
-        .title("World Monitor Settings")
-        .inner_size(980.0, 760.0)
-        .min_inner_size(820.0, 620.0)
-        .resizable(true)
-        .visible(false)
-        .build()
-        .map_err(|e| format!("Failed to create settings window: {e}"))?;
+    let _settings_window =
+        WebviewWindowBuilder::new(app, "settings", WebviewUrl::App("settings.html".into()))
+            .title("World Monitor Settings")
+            .inner_size(980.0, 760.0)
+            .min_inner_size(820.0, 620.0)
+            .resizable(true)
+            .visible(false)
+            .build()
+            .map_err(|e| format!("Failed to create settings window: {e}"))?;
 
     // On Windows/Linux, menus are per-window. Remove the inherited app menu
     // from the settings window (macOS uses a shared app-wide menu bar instead).
     #[cfg(not(target_os = "macos"))]
     let _ = _settings_window.remove_menu();
+
+    Ok(())
+}
+
+fn open_cuba_province_window(app: &AppHandle, province: &CubaProvince) -> Result<(), String> {
+    let label = format!("cuba-province-{}", province.id);
+
+    if let Some(window) = app.get_webview_window(&label) {
+        let _ = window.show();
+        window
+            .set_focus()
+            .map_err(|e| format!("Failed to focus {} window: {e}", province.name))?;
+        return Ok(());
+    }
+
+    let url = format!(
+        "index.html?province={}&lat={:.4}&lon={:.4}&zoom={:.2}",
+        province.id, province.lat, province.lon, province.zoom
+    );
+
+    let province_window = WebviewWindowBuilder::new(app, &label, WebviewUrl::App(url.into()))
+        .title(&format!("Cuba - {}", province.name))
+        .inner_size(1180.0, 780.0)
+        .min_inner_size(920.0, 640.0)
+        .resizable(true)
+        .build()
+        .map_err(|e| format!("Failed to create {} window: {e}", province.name))?;
+
+    #[cfg(not(target_os = "macos"))]
+    let _ = province_window.remove_menu();
 
     Ok(())
 }
@@ -378,10 +575,21 @@ fn build_app_menu(handle: &AppHandle) -> tauri::Result<Menu<tauri::Wry>> {
         true,
         Some("CmdOrCtrl+,"),
     )?;
+    let cuba_provinces_item = MenuItem::with_id(
+        handle,
+        MENU_FILE_CUBA_PROVINCES_ID,
+        "Open Cuba Province Windows",
+        true,
+        None::<&str>,
+    )?;
     let separator = PredefinedMenuItem::separator(handle)?;
     let quit_item = PredefinedMenuItem::quit(handle, Some("Quit"))?;
-    let file_menu =
-        Submenu::with_items(handle, "File", true, &[&settings_item, &separator, &quit_item])?;
+    let file_menu = Submenu::with_items(
+        handle,
+        "File",
+        true,
+        &[&settings_item, &cuba_provinces_item, &separator, &quit_item],
+    )?;
 
     let about_metadata = AboutMetadata {
         name: Some("World Monitor".into()),
@@ -391,7 +599,8 @@ fn build_app_menu(handle: &AppHandle) -> tauri::Result<Menu<tauri::Wry>> {
         website_label: Some("worldmonitor.app".into()),
         ..Default::default()
     };
-    let about_item = PredefinedMenuItem::about(handle, Some("About World Monitor"), Some(about_metadata))?;
+    let about_item =
+        PredefinedMenuItem::about(handle, Some("About World Monitor"), Some(about_metadata))?;
     let github_item = MenuItem::with_id(
         handle,
         MENU_HELP_GITHUB_ID,
@@ -422,7 +631,12 @@ fn build_app_menu(handle: &AppHandle) -> tauri::Result<Menu<tauri::Wry>> {
         let copy = PredefinedMenuItem::copy(handle, None)?;
         let paste = PredefinedMenuItem::paste(handle, None)?;
         let select_all = PredefinedMenuItem::select_all(handle, None)?;
-        Submenu::with_items(handle, "Edit", true, &[&undo, &redo, &sep1, &cut, &copy, &paste, &select_all])?
+        Submenu::with_items(
+            handle,
+            "Edit",
+            true,
+            &[&undo, &redo, &sep1, &cut, &copy, &paste, &select_all],
+        )?
     };
 
     Menu::with_items(handle, &[&file_menu, &edit_menu, &help_menu])
@@ -434,6 +648,12 @@ fn handle_menu_event(app: &AppHandle, event: tauri::menu::MenuEvent) {
             if let Err(err) = open_settings_window(app) {
                 append_desktop_log(app, "ERROR", &format!("settings menu failed: {err}"));
                 eprintln!("[tauri] settings menu failed: {err}");
+            }
+        }
+        MENU_FILE_CUBA_PROVINCES_ID => {
+            if let Err(err) = open_all_cuba_province_windows_command(app.clone()) {
+                append_desktop_log(app, "ERROR", &format!("cuba provinces menu failed: {err}"));
+                eprintln!("[tauri] cuba provinces menu failed: {err}");
             }
         }
         MENU_HELP_GITHUB_ID => {
@@ -626,10 +846,17 @@ fn start_local_api(app: &AppHandle) -> Result<(), String> {
             log_path.display()
         ),
     );
-    append_desktop_log(app, "INFO", &format!("resolved node binary={}", node_binary.display()));
+    append_desktop_log(
+        app,
+        "INFO",
+        &format!("resolved node binary={}", node_binary.display()),
+    );
 
     // Generate a unique token for local API auth (prevents other local processes from accessing sidecar)
-    let mut token_slot = state.token.lock().map_err(|_| "Failed to lock token slot")?;
+    let mut token_slot = state
+        .token
+        .lock()
+        .map_err(|_| "Failed to lock token slot")?;
     if token_slot.is_none() {
         *token_slot = Some(generate_local_token());
     }
@@ -639,12 +866,16 @@ fn start_local_api(app: &AppHandle) -> Result<(), String> {
     let mut cmd = Command::new(&node_binary);
     #[cfg(windows)]
     cmd.creation_flags(0x08000000); // CREATE_NO_WINDOW — hide the node.exe console
-    // Sanitize paths for Node.js on Windows: strip \\?\ UNC prefix and set
-    // explicit working directory to avoid bare drive-letter CWD issues that
-    // cause EISDIR errors in Node.js module resolution.
+                                    // Sanitize paths for Node.js on Windows: strip \\?\ UNC prefix and set
+                                    // explicit working directory to avoid bare drive-letter CWD issues that
+                                    // cause EISDIR errors in Node.js module resolution.
     let script_for_node = sanitize_path_for_node(&script);
     let resource_for_node = sanitize_path_for_node(&resource_root);
-    append_desktop_log(app, "INFO", &format!("node args: script={script_for_node} resource_dir={resource_for_node}"));
+    append_desktop_log(
+        app,
+        "INFO",
+        &format!("node args: script={script_for_node} resource_dir={resource_for_node}"),
+    );
     cmd.arg(&script_for_node)
         .env("LOCAL_API_PORT", LOCAL_API_PORT)
         .env("LOCAL_API_RESOURCE_DIR", &resource_for_node)
@@ -668,12 +899,20 @@ fn start_local_api(app: &AppHandle) -> Result<(), String> {
             }
         }
     }
-    append_desktop_log(app, "INFO", &format!("injected {secret_count} keychain secrets into sidecar env"));
+    append_desktop_log(
+        app,
+        "INFO",
+        &format!("injected {secret_count} keychain secrets into sidecar env"),
+    );
 
     let child = cmd
         .spawn()
         .map_err(|e| format!("Failed to launch local API: {e}"))?;
-    append_desktop_log(app, "INFO", &format!("local API sidecar started pid={}", child.id()));
+    append_desktop_log(
+        app,
+        "INFO",
+        &format!("local API sidecar started pid={}", child.id()),
+    );
     *slot = Some(child);
     Ok(())
 }
@@ -707,6 +946,8 @@ fn main() {
             open_logs_folder,
             open_sidecar_log_file,
             open_settings_window_command,
+            open_cuba_province_window_command,
+            open_all_cuba_province_windows_command,
             close_settings_window,
             open_url,
             fetch_polymarket
