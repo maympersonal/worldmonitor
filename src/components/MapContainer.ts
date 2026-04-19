@@ -72,7 +72,7 @@ export class MapContainer {
     this.initialState = initialState;
     this.isMobile = isMobileDevice();
 
-    // Use deck.gl on desktop with WebGL support, SVG on mobile
+    // Use deck.gl on desktop with WebGL2 support, SVG on mobile
     this.useDeckGL = !this.isMobile && this.hasWebGLSupport();
 
     this.init();
@@ -81,25 +81,49 @@ export class MapContainer {
   private hasWebGLSupport(): boolean {
     try {
       const canvas = document.createElement('canvas');
-      const gl = canvas.getContext('webgl2') || canvas.getContext('webgl');
-      return !!gl;
+      // DeckGL + MapLibre are more reliable with WebGL2.
+      // Some Linux/WebKit stacks expose only WebGL1 and end up showing
+      // a blank surface; in that case we fallback to SVG map.
+      const gl2 = canvas.getContext('webgl2');
+      return !!gl2;
     } catch {
       return false;
     }
   }
 
+  private initSvgMap(logMessage: string): void {
+    console.log(logMessage);
+    this.useDeckGL = false;
+    this.deckGLMap = null;
+    this.container.classList.remove('deckgl-mode');
+    this.container.classList.add('svg-mode');
+    // DeckGLMap mutates DOM during construction; if it throws, clear partial nodes.
+    this.container.innerHTML = '';
+    this.svgMap = new MapComponent(this.container, this.initialState);
+  }
+
   private init(): void {
     if (this.useDeckGL) {
       console.log('[MapContainer] Initializing deck.gl map (desktop mode)');
-      this.container.classList.add('deckgl-mode');
-      this.deckGLMap = new DeckGLMap(this.container, {
-        ...this.initialState,
-        view: this.initialState.view as DeckMapView,
-      });
+      try {
+        this.container.classList.remove('svg-mode');
+        this.container.classList.add('deckgl-mode');
+        this.deckGLMap = new DeckGLMap(this.container, {
+          ...this.initialState,
+          view: this.initialState.view as DeckMapView,
+        });
+      } catch (error) {
+        console.warn('[MapContainer] DeckGL initialization failed, falling back to SVG map', error);
+        this.initSvgMap('[MapContainer] Initializing SVG map (DeckGL fallback mode)');
+      }
     } else {
-      console.log('[MapContainer] Initializing SVG map (mobile/fallback mode)');
-      this.container.classList.add('svg-mode');
-      this.svgMap = new MapComponent(this.container, this.initialState);
+      this.initSvgMap('[MapContainer] Initializing SVG map (mobile/fallback mode)');
+    }
+  }
+
+  public reloadBasemap(): void {
+    if (this.useDeckGL) {
+      this.deckGLMap?.reloadBasemap();
     }
   }
 

@@ -78,8 +78,12 @@ export async function checkAnomaly(
 ): Promise<TemporalAnomaly | null> {
   try {
     const params = new URLSearchParams({ type, region, count: String(count) });
-    const res = await fetch(`${BASELINE_API}?${params}`);
+    const res = await fetch(`${BASELINE_API}?${params}`, {
+      headers: { Accept: 'application/json' },
+    });
     if (!res.ok) return null;
+    const contentType = res.headers.get('content-type') || '';
+    if (!contentType.includes('application/json')) return null;
 
     const data = await res.json();
     if (!data.anomaly) return null;

@@ -489,6 +489,7 @@ export async function fetchFeed(feed: Feed): Promise<NewsItem[]> {
   try {
     const attemptUrls = getFeedAttemptUrls(feed);
     let lastError: unknown = null;
+    let hadSuccessfulEmptyAttempt = false;
 
     for (let attemptIndex = 0; attemptIndex < attemptUrls.length; attemptIndex += 1) {
       const attemptUrl = attemptUrls[attemptIndex]!;
@@ -541,7 +542,9 @@ export async function fetchFeed(feed: Feed): Promise<NewsItem[]> {
             const pubDate = Number.isNaN(parsedDate.getTime()) ? new Date() : parsedDate;
             const threat = classifyByKeyword(title, SITE_VARIANT);
             const isAlert = threat.level === 'critical' || threat.level === 'high';
-            const geoMatches = inferGeoHubsFromTitle(title);
+            // Use both title and snippet so location inference still works when
+            // the headline is terse but the feed summary contains the place name.
+            const geoMatches = inferGeoHubsFromTitle(`${title} ${snippet}`.trim());
             const topGeo = geoMatches[0];
 
             return {
@@ -579,6 +582,7 @@ export async function fetchFeed(feed: Feed): Promise<NewsItem[]> {
         // If this attempt yields no headlines, try configured fallbacks before
         // accepting an empty result.
         if (parsed.length === 0 && attemptIndex < attemptUrls.length - 1) {
+          hadSuccessfulEmptyAttempt = true;
           console.warn(`[RSS] ${feed.name} returned no items, trying fallback ${attemptIndex + 1}/${attemptUrls.length - 1}`);
           continue;
         }
@@ -627,6 +631,21 @@ export async function fetchFeed(feed: Feed): Promise<NewsItem[]> {
 
         if (error instanceof Error && error.message.startsWith('Parse error')) {
           console.warn(`Parse error for ${feed.name}`);
+        }
+
+        if (hadSuccessfulEmptyAttempt) {
+          // Keep a valid empty result when the primary feed parsed correctly
+          // but downstream fallback endpoints are unavailable/blocked.
+          const emptyResult: NewsItem[] = [];
+          if (!hasScopedCubaFilter) {
+            feedCache.set(feed.name, { items: emptyResult, timestamp: Date.now() });
+            void setPersistentCache(`feed:${feed.name}`, toSerializable(emptyResult));
+          } else {
+            feedCache.delete(feed.name);
+          }
+          recordFeedSuccess(feed.name);
+          console.warn(`[RSS] ${feed.name} fallback failed; keeping empty primary result`);
+          return emptyResult;
         }
       }
     }

@@ -45,6 +45,25 @@ const GEO_HUBS: GeoHubLocation[] = [
   { id: 'cairo', name: 'Cairo', region: 'Middle East', country: 'Egypt', lat: 30.0444, lon: 31.2357, type: 'capital', tier: 'major', keywords: ['cairo', 'egypt', 'egyptian', 'sisi'] },
   { id: 'islamabad', name: 'Islamabad', region: 'Asia', country: 'Pakistan', lat: 33.6844, lon: 73.0479, type: 'capital', tier: 'major', keywords: ['islamabad', 'pakistan', 'pakistani'] },
 
+  // Cuba and provincial hubs
+  { id: 'cuba', name: 'Cuba', region: 'Caribbean', country: 'Cuba', lat: 21.5218, lon: -78.7812, type: 'strategic', tier: 'major', keywords: ['cuba', 'cuban', 'cubano', 'cubana'] },
+  { id: 'havana', name: 'La Habana', region: 'Caribbean', country: 'Cuba', lat: 23.1136, lon: -82.3666, type: 'capital', tier: 'major', keywords: ['la habana', 'habana', 'havana', 'habana vieja', 'centro habana'] },
+  { id: 'pinar-del-rio', name: 'Pinar del Río', region: 'Caribbean', country: 'Cuba', lat: 22.4175, lon: -83.6981, type: 'strategic', tier: 'notable', keywords: ['pinar del río', 'pinar del rio', 'viñales', 'vinales', 'consolación del sur', 'consolacion del sur'] },
+  { id: 'artemisa', name: 'Artemisa', region: 'Caribbean', country: 'Cuba', lat: 22.8167, lon: -82.7594, type: 'strategic', tier: 'notable', keywords: ['artemisa', 'san antonio de los baños', 'san antonio de los banos', 'mariel'] },
+  { id: 'mayabeque', name: 'Mayabeque', region: 'Caribbean', country: 'Cuba', lat: 22.9614, lon: -82.1511, type: 'strategic', tier: 'notable', keywords: ['mayabeque', 'san josé de las lajas', 'san jose de las lajas', 'melena del sur'] },
+  { id: 'matanzas', name: 'Matanzas', region: 'Caribbean', country: 'Cuba', lat: 23.0411, lon: -81.5775, type: 'strategic', tier: 'notable', keywords: ['matanzas', 'varadero', 'cárdenas', 'cardenas'] },
+  { id: 'cienfuegos', name: 'Cienfuegos', region: 'Caribbean', country: 'Cuba', lat: 22.1496, lon: -80.4466, type: 'strategic', tier: 'notable', keywords: ['cienfuegos', 'rodas', 'aguada de pasajeros'] },
+  { id: 'villa-clara', name: 'Villa Clara', region: 'Caribbean', country: 'Cuba', lat: 22.4069, lon: -79.9647, type: 'strategic', tier: 'notable', keywords: ['villa clara', 'santa clara', 'sagua la grande', 'caibarien', 'caibarién'] },
+  { id: 'sancti-spiritus', name: 'Sancti Spíritus', region: 'Caribbean', country: 'Cuba', lat: 21.9297, lon: -79.4425, type: 'strategic', tier: 'notable', keywords: ['sancti spíritus', 'sancti spiritus', 'trinidad cuba', 'jatibonico'] },
+  { id: 'ciego-de-avila', name: 'Ciego de Ávila', region: 'Caribbean', country: 'Cuba', lat: 21.8400, lon: -78.7619, type: 'strategic', tier: 'notable', keywords: ['ciego de ávila', 'ciego de avila', 'morón', 'moron', 'cayo coco'] },
+  { id: 'camaguey', name: 'Camagüey', region: 'Caribbean', country: 'Cuba', lat: 21.3819, lon: -77.9169, type: 'strategic', tier: 'notable', keywords: ['camagüey', 'camaguey', 'nuevitas', 'florida cuba'] },
+  { id: 'las-tunas', name: 'Las Tunas', region: 'Caribbean', country: 'Cuba', lat: 20.9617, lon: -76.9511, type: 'strategic', tier: 'notable', keywords: ['las tunas', 'puerto padre', 'jobabo'] },
+  { id: 'holguin', name: 'Holguín', region: 'Caribbean', country: 'Cuba', lat: 20.8872, lon: -76.2631, type: 'strategic', tier: 'notable', keywords: ['holguín', 'holguin', 'moa cuba', 'banes'] },
+  { id: 'granma', name: 'Granma', region: 'Caribbean', country: 'Cuba', lat: 20.3813, lon: -76.6433, type: 'strategic', tier: 'notable', keywords: ['granma', 'bayamo', 'manzanillo cuba', 'pilón cuba', 'pilon cuba'] },
+  { id: 'santiago-de-cuba', name: 'Santiago de Cuba', region: 'Caribbean', country: 'Cuba', lat: 20.0208, lon: -75.8267, type: 'strategic', tier: 'major', keywords: ['santiago de cuba', 'palma soriano', 'contramaestre'] },
+  { id: 'guantanamo', name: 'Guantánamo', region: 'Caribbean', country: 'Cuba', lat: 20.1444, lon: -75.2092, type: 'strategic', tier: 'major', keywords: ['guantánamo', 'guantanamo', 'baracoa', 'maisí', 'maisi', 'maisi cuba', 'imías', 'imias'] },
+  { id: 'isla-de-la-juventud', name: 'Isla de la Juventud', region: 'Caribbean', country: 'Cuba', lat: 21.8867, lon: -82.8056, type: 'strategic', tier: 'notable', keywords: ['isla de la juventud', 'nueva gerona', 'isle of youth'] },
+
   // Conflict Zones
   { id: 'gaza', name: 'Gaza', region: 'Middle East', country: 'Palestine', lat: 31.5, lon: 34.47, type: 'conflict', tier: 'critical', keywords: ['gaza', 'hamas', 'palestinian', 'rafah', 'khan younis', 'gaza strip'] },
   { id: 'westbank', name: 'West Bank', region: 'Middle East', country: 'Palestine', lat: 31.9, lon: 35.2, type: 'conflict', tier: 'major', keywords: ['west bank', 'ramallah', 'jenin', 'nablus', 'hebron'] },

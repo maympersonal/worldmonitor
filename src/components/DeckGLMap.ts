@@ -134,9 +134,11 @@ const VIEW_PRESETS: Record<DeckMapView, { longitude: number; latitude: number; z
 const MAP_INTERACTION_MODE: MapInteractionMode =
   import.meta.env.VITE_MAP_INTERACTION_MODE === 'flat' ? 'flat' : '3d';
 
-// Theme-aware basemap vector style URLs (English labels, no local scripts)
-const DARK_STYLE = 'https://basemaps.cartocdn.com/gl/dark-matter-gl-style/style.json';
-const LIGHT_STYLE = 'https://basemaps.cartocdn.com/gl/voyager-gl-style/style.json';
+// Basemap styles
+const CARTO_DARK_STYLE = 'https://basemaps.cartocdn.com/gl/dark-matter-gl-style/style.json';
+const CARTO_LIGHT_STYLE = 'https://basemaps.cartocdn.com/gl/voyager-gl-style/style.json';
+const OPENFREEMAP_DARK_STYLE = 'https://tiles.openfreemap.org/styles/dark';
+const OPENFREEMAP_LIGHT_STYLE = 'https://tiles.openfreemap.org/styles/positron';
 
 // Zoom thresholds for layer visibility and labels (matches old Map.ts)
 // Zoom-dependent layer visibility and labels
@@ -313,6 +315,10 @@ export class DeckGLMap {
   private debouncedRebuildLayers: () => void;
   private rafUpdateLayers: () => void;
   private moveTimeoutId: ReturnType<typeof setTimeout> | null = null;
+  private usedFallbackStyle = false;
+  private styleLoadTimeoutId: ReturnType<typeof setTimeout> | null = null;
+  private tileMonitorGeneration = 0;
+  private readonly handleThemeChange: (e: Event) => void;
 
   constructor(container: HTMLElement, initialState: DeckMapState) {
     this.container = container;
@@ -335,21 +341,15 @@ export class DeckGLMap {
     this.setupDOM();
     this.popup = new MapPopup(container);
 
-    window.addEventListener('theme-changed', (e: Event) => {
+    this.handleThemeChange = (e: Event) => {
       const theme = (e as CustomEvent).detail?.theme as 'dark' | 'light';
-      if (theme) {
-        this.switchBasemap(theme);
-        this.render(); // Rebuilds Deck.GL layers with new theme-aware colors
-      }
-    });
+      if (!theme) return;
+      this.switchBasemap(theme);
+      this.render(); // Rebuild Deck.GL layers with theme-aware colors
+    };
+    window.addEventListener('theme-changed', this.handleThemeChange);
 
     this.initMapLibre();
-
-    this.maplibreMap?.on('load', () => {
-      this.initDeck();
-      this.loadCountryBoundaries();
-      this.render();
-    });
 
     this.setupResizeObserver();
 
@@ -380,7 +380,7 @@ export class DeckGLMap {
 
     this.maplibreMap = new maplibregl.Map({
       container: 'deckgl-basemap',
-      style: initialTheme === 'light' ? LIGHT_STYLE : DARK_STYLE,
+      style: initialTheme === 'light' ? CARTO_LIGHT_STYLE : CARTO_DARK_STYLE,
       center: [preset.longitude, preset.latitude],
       zoom: preset.zoom,
       renderWorldCopies: false,
@@ -396,6 +396,21 @@ export class DeckGLMap {
         : {}),
     });
 
+    this.attachMapLoadHandler();
+    this.attachMapCanvasHandlers();
+    this.monitorTileLoading(initialTheme);
+  }
+
+  private attachMapLoadHandler(): void {
+    this.maplibreMap?.on('load', () => {
+      this.initDeck();
+      this.loadCountryBoundaries();
+      this.render();
+    });
+  }
+
+  private attachMapCanvasHandlers(): void {
+    if (!this.maplibreMap) return;
     const canvas = this.maplibreMap.getCanvas();
     canvas.addEventListener('webglcontextlost', (e) => {
       e.preventDefault();
@@ -406,6 +421,87 @@ export class DeckGLMap {
       this.webglLost = false;
       console.info('[DeckGLMap] WebGL context restored');
       this.maplibreMap?.triggerRepaint();
+    });
+  }
+
+  private monitorTileLoading(theme: 'dark' | 'light'): void {
+    if (!this.maplibreMap) return;
+    const gen = ++this.tileMonitorGeneration;
+    let tileLoadOk = false;
+    let tileErrorCount = 0;
+    let timeoutId: ReturnType<typeof setTimeout> | null = null;
+    const map = this.maplibreMap;
+
+    const cleanup = () => {
+      map.off('error', onError);
+      map.off('data', onData);
+      if (timeoutId) {
+        clearTimeout(timeoutId);
+        timeoutId = null;
+      }
+      if (this.styleLoadTimeoutId) {
+        clearTimeout(this.styleLoadTimeoutId);
+        this.styleLoadTimeoutId = null;
+      }
+    };
+
+    const onError = (e: { error?: Error; message?: string }) => {
+      if (gen !== this.tileMonitorGeneration) {
+        cleanup();
+        return;
+      }
+      const msg = e.error?.message ?? e.message ?? '';
+      if (
+        msg.includes('Failed to fetch') ||
+        msg.includes('AJAXError') ||
+        msg.includes('CORS') ||
+        msg.includes('NetworkError') ||
+        msg.includes('403') ||
+        msg.includes('Forbidden')
+      ) {
+        tileErrorCount++;
+        if (!tileLoadOk && tileErrorCount >= 2) {
+          cleanup();
+          this.switchToFallbackStyle(theme);
+        }
+      }
+    };
+
+    const onData = (e: { dataType?: string }) => {
+      if (gen !== this.tileMonitorGeneration) {
+        cleanup();
+        return;
+      }
+      if (e.dataType === 'source') {
+        tileLoadOk = true;
+        cleanup();
+      }
+    };
+
+    map.on('error', onError);
+    map.on('data', onData);
+
+    timeoutId = setTimeout(() => {
+      timeoutId = null;
+      if (gen !== this.tileMonitorGeneration) return;
+      cleanup();
+      if (!tileLoadOk) this.switchToFallbackStyle(theme);
+    }, 10000);
+
+    this.styleLoadTimeoutId = timeoutId;
+  }
+
+  private switchToFallbackStyle(theme: 'dark' | 'light'): void {
+    if (this.usedFallbackStyle || !this.maplibreMap) return;
+    this.usedFallbackStyle = true;
+    const fallback = theme === 'light' ? OPENFREEMAP_LIGHT_STYLE : OPENFREEMAP_DARK_STYLE;
+    console.warn('[DeckGLMap] Basemap tiles failed, falling back to OpenFreeMap: ' + fallback);
+
+    this.countryGeoJsonLoaded = false;
+    this.maplibreMap.setStyle(fallback);
+    this.maplibreMap.once('style.load', () => {
+      this.loadCountryBoundaries();
+      this.render();
     });
   }
 
@@ -3811,12 +3907,26 @@ export class DeckGLMap {
 
   private switchBasemap(theme: 'dark' | 'light'): void {
     if (!this.maplibreMap) return;
-    this.maplibreMap.setStyle(theme === 'light' ? LIGHT_STYLE : DARK_STYLE);
+    const style = this.usedFallbackStyle
+      ? (theme === 'light' ? OPENFREEMAP_LIGHT_STYLE : OPENFREEMAP_DARK_STYLE)
+      : (theme === 'light' ? CARTO_LIGHT_STYLE : CARTO_DARK_STYLE);
+
+    this.maplibreMap.setStyle(style);
     // setStyle() replaces all sources/layers — reset guard so country layers are re-added
     this.countryGeoJsonLoaded = false;
     this.maplibreMap.once('style.load', () => {
       this.loadCountryBoundaries();
+      this.render();
     });
+
+    if (!this.usedFallbackStyle) {
+      this.monitorTileLoading(theme);
+    }
+  }
+
+  public reloadBasemap(): void {
+    this.usedFallbackStyle = false;
+    this.switchBasemap(getCurrentTheme());
   }
 
   private updateCountryLayerPaint(theme: 'dark' | 'light'): void {
@@ -3830,6 +3940,13 @@ export class DeckGLMap {
   }
 
   public destroy(): void {
+    window.removeEventListener('theme-changed', this.handleThemeChange);
+
+    if (this.styleLoadTimeoutId) {
+      clearTimeout(this.styleLoadTimeoutId);
+      this.styleLoadTimeoutId = null;
+    }
+
     if (this.moveTimeoutId) {
       clearTimeout(this.moveTimeoutId);
       this.moveTimeoutId = null;

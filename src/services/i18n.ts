@@ -1,5 +1,5 @@
 import i18next from 'i18next';
-import LanguageDetector from 'i18next-browser-languagedetector';
+import LanguageDetector from 'i18next-browser-languagedetector/cjs';
 import en from '../locales/en.json';
 import fr from '../locales/fr.json';
 import de from '../locales/de.json';

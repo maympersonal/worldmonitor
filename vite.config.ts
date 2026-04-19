@@ -412,6 +412,16 @@ export default defineConfig({
           });
         },
       },
+      // Temporal anomaly baseline edge function
+      '/api/temporal-baseline': {
+        target: 'https://worldmonitor.app',
+        changeOrigin: true,
+        configure: (proxy) => {
+          proxy.on('error', (err) => {
+            console.log('Temporal baseline proxy error:', err.message);
+          });
+        },
+      },
       // USGS Earthquake API
       '/api/earthquakes': {
         target: 'https://earthquake.usgs.gov',

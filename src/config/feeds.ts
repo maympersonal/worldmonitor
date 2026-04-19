@@ -12,6 +12,8 @@ const railwayBaseUrl = wsRelayUrl
   : '';
 const railwayRss = (url: string) =>
   railwayBaseUrl ? `${railwayBaseUrl}/rss?url=${encodeURIComponent(url)}` : rss(url);
+const railwayRssStrict = (url: string) =>
+  railwayBaseUrl ? `${railwayBaseUrl}/rss?url=${encodeURIComponent(url)}` : '';
 const googleNewsRss = (
   query: string,
   hl = 'en-US',
@@ -885,7 +887,7 @@ const FULL_FEEDS: Record<string, Feed[]> = {
       fallbackUrls: [googleNewsRss('site:warontherocks.com+when:7d')],
     },
     // AEI - American Enterprise Institute (US conservative think tank)
-    { name: 'AEI', url: rss('https://www.aei.org/feed/') },
+    { name: 'AEI', url: googleNewsRss('site:aei.org+when:7d') },
     // Responsible Statecraft - Foreign policy analysis (Quincy Institute)
     { name: 'Responsible Statecraft', url: rss('https://responsiblestatecraft.org/feed/') },
     // RUSI - Royal United Services Institute (UK defense & security)
@@ -932,18 +934,24 @@ const FULL_FEEDS: Record<string, Feed[]> = {
     {
       name: 'NHK World',
       url: googleNewsRss('(site:nhk.or.jp+OR+"NHK+World")+when:7d'),
-      fallbackUrls: [railwayRss('https://rsshub.app/nhk/news/en')],
+      fallbackUrls: [railwayRssStrict('https://rsshub.app/nhk/news/en')].filter(Boolean),
     },
     { name: 'Nikkei Asia', url: rss('https://news.google.com/rss/search?q=site:asia.nikkei.com+when:3d&hl=en-US&gl=US&ceid=US:en') },
     {
       name: 'MIIT (China)',
       url: googleNewsRss('(site:miit.gov.cn+OR+MIIT+China)+when:7d'),
-      fallbackUrls: [railwayRss('https://rsshub.app/gov/miit/zcjd')],
+      fallbackUrls: [
+        googleNewsRss('(site:miit.gov.cn+OR+MIIT+policy+China)+when:14d'),
+        railwayRssStrict('https://rsshub.app/gov/miit/zcjd'),
+      ].filter(Boolean),
     },
     {
       name: 'MOFCOM (China)',
       url: googleNewsRss('(site:mofcom.gov.cn+OR+MOFCOM+China)+when:7d'),
-      fallbackUrls: [railwayRss('https://rsshub.app/gov/mofcom/article/xwfb')],
+      fallbackUrls: [
+        googleNewsRss('(site:mofcom.gov.cn+OR+MOFCOM+policy+China)+when:14d'),
+        railwayRssStrict('https://rsshub.app/gov/mofcom/article/xwfb'),
+      ].filter(Boolean),
     },
   ],
   energy: [
