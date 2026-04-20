@@ -62,8 +62,11 @@ export async function reportMetrics(
   try {
     await fetch(BASELINE_API, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      // Use a simple request content type so desktop remote fallbacks do not
+      // depend on a successful CORS preflight.
+      headers: { 'Content-Type': 'text/plain' },
       body: JSON.stringify({ updates }),
+      keepalive: true,
     });
   } catch (e) {
     console.warn('[TemporalBaseline] Update failed:', e);

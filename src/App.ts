@@ -3758,10 +3758,14 @@ export class App {
    * Map rendering is separate and still gated by layer visibility
    */
   private async loadIntelligenceSignals(): Promise<void> {
+    const subtaskTimeoutMs = 25 * 1000;
+    const boundedTask = <T>(label: string, task: () => Promise<T>): Promise<T> =>
+      this.runTaskWithTimeout(`intelligence:${label}`, task, subtaskTimeoutMs);
+
     const tasks: Promise<void>[] = [];
 
     // Always fetch outages for CII (internet blackouts = major instability signal)
-    tasks.push((async () => {
+    tasks.push(boundedTask('outages', async () => {
       try {
         const outages = await fetchInternetOutages();
         this.intelligenceCache.outages = outages;
@@ -3778,11 +3782,11 @@ export class App {
         console.error('[Intelligence] Outages fetch failed:', error);
         dataFreshness.recordError('outages', String(error));
       }
-    })());
+    }).then(() => undefined).catch(() => undefined));
 
     // Always fetch protests for CII (unrest = core instability metric)
     // This task is also used by UCDP deduplication, so keep it as a shared promise.
-    const protestsTask = (async (): Promise<SocialUnrestEvent[]> => {
+    const protestsTask = boundedTask('protests', async (): Promise<SocialUnrestEvent[]> => {
       try {
         const protestData = await fetchProtestEvents();
         this.intelligenceCache.protests = protestData;
@@ -3809,11 +3813,11 @@ export class App {
         dataFreshness.recordError('acled', String(error));
         return [];
       }
-    })();
+    }).catch(() => []);
     tasks.push(protestsTask.then(() => undefined));
 
     // Fetch armed conflict events (battles, explosions, violence) for CII
-    tasks.push((async () => {
+    tasks.push(boundedTask('conflicts', async () => {
       try {
         const conflictData = await fetchConflictEvents();
         ingestConflictsForCII(conflictData.events);
@@ -3822,7 +3826,7 @@ export class App {
         console.error('[Intelligence] Conflict events fetch failed:', error);
         dataFreshness.recordError('acled_conflict', String(error));
       }
-    })());
+    }).then(() => undefined).catch(() => undefined));
 
     // Desactivado por solicitud: clasificación UCDP para CII.
     // tasks.push((async () => {
@@ -3837,7 +3841,7 @@ export class App {
     // })());
 
     // Fetch HDX HAPI aggregated conflict data (fallback/validation)
-    tasks.push((async () => {
+    tasks.push(boundedTask('hapi', async () => {
       try {
         const summaries = await fetchHapiSummary();
         ingestHapiForCII(summaries);
@@ -3846,10 +3850,10 @@ export class App {
         console.error('[Intelligence] HAPI fetch failed:', error);
         dataFreshness.recordError('hapi', String(error));
       }
-    })());
+    }).then(() => undefined).catch(() => undefined));
 
     // Always fetch military for CII (security = core instability metric)
-    tasks.push((async () => {
+    tasks.push(boundedTask('military', async () => {
       try {
         if (isMilitaryVesselTrackingConfigured()) {
           initMilitaryVesselStream();
@@ -3907,7 +3911,7 @@ export class App {
         console.error('[Intelligence] Military fetch failed:', error);
         dataFreshness.recordError('opensky', String(error));
       }
-    })());
+    }).then(() => undefined).catch(() => undefined));
 
     // Desactivado por solicitud: eventos de conflicto UCDP.
     // tasks.push((async () => {
@@ -3957,7 +3961,7 @@ export class App {
     // })());
 
     // Fetch climate anomalies (temperature/precipitation deviations)
-    tasks.push((async () => {
+    tasks.push(boundedTask('climate', async () => {
       try {
         const climateResult = await fetchClimateAnomalies();
         if (!climateResult.ok) {
@@ -3975,7 +3979,7 @@ export class App {
         console.error('[Intelligence] Climate anomalies fetch failed:', error);
         dataFreshness.recordError('climate', String(error));
       }
-    })());
+    }).then(() => undefined).catch(() => undefined));
 
     await Promise.allSettled(tasks);
 

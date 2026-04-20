@@ -1,5 +1,5 @@
 import { Panel } from './Panel';
-import { fetchLiveVideoId } from '@/services/live-news';
+import { fetchChannelVideo, getYouTubeChannelUrl } from '@/services/live-news';
 import { isDesktopRuntime, getRemoteApiBaseUrl } from '@/services/runtime';
 import { t } from '../services/i18n';
 
@@ -42,7 +42,7 @@ declare global {
 interface LiveChannel {
   id: string;
   name: string;
-  handle: string; // YouTube channel handle (e.g., @bloomberg)
+  channelRef: string; // YouTube channel path or full URL
   fallbackVideoId?: string; // Fallback if no live stream detected
   videoId?: string; // Dynamically fetched live video ID
   isLive?: boolean;
@@ -53,23 +53,32 @@ const SITE_VARIANT = import.meta.env.VITE_VARIANT || 'full';
 
 // Full variant: World news channels (24/7 live streams)
 const FULL_LIVE_CHANNELS: LiveChannel[] = [
-  // { id: 'bloomberg', name: 'Bloomberg', handle: '@Bloomberg', fallbackVideoId: 'iEpJwprxDdk' },
-  // { id: 'sky', name: 'SkyNews', handle: '@SkyNews', fallbackVideoId: 'YDvsBbKfLPA' },
-  // { id: 'euronews', name: 'Euronews', handle: '@euabortnews', fallbackVideoId: 'pykpO5kQJ98' },
-  // { id: 'dw', name: 'DW', handle: '@DWNews', fallbackVideoId: 'LuKwFajn37U' },
-  // { id: 'cnbc', name: 'CNBC', handle: '@CNBC', fallbackVideoId: '9NyxcX3rhQs' },
-  // { id: 'france24', name: 'France24', handle: '@FRANCE24English', fallbackVideoId: 'Ap-UM1O9RBU' },
-  { id: 'CanalCaribe', name: 'Canal Caribe', handle: '@canalcaribecuba', fallbackVideoId: 'xLQtzck_Gks'},
-  { id: 'CubavisiónInternacional', name: 'Cubavisión Internacional', handle: '@CubavisiónInternacional', fallbackVideoId: 'pwgmLCtAqKM'},
-  
+  // { id: 'bloomberg', name: 'Bloomberg', channelRef: '@Bloomberg', fallbackVideoId: 'iEpJwprxDdk' },
+  // { id: 'sky', name: 'SkyNews', channelRef: '@SkyNews', fallbackVideoId: 'YDvsBbKfLPA' },
+  // { id: 'euronews', name: 'Euronews', channelRef: '@euabortnews', fallbackVideoId: 'pykpO5kQJ98' },
+  // { id: 'dw', name: 'DW', channelRef: '@DWNews', fallbackVideoId: 'LuKwFajn37U' },
+  // { id: 'cnbc', name: 'CNBC', channelRef: '@CNBC', fallbackVideoId: '9NyxcX3rhQs' },
+  // { id: 'france24', name: 'France24', channelRef: '@FRANCE24English', fallbackVideoId: 'Ap-UM1O9RBU' },
+  {
+    id: 'canal-caribe',
+    name: 'Canal Caribe',
+    channelRef: 'https://www.youtube.com/@CanalCaribeCuba/live',
+    fallbackVideoId: 'xLQtzck_Gks',
+  },
+  {
+    id: 'cubavision-internacional',
+    name: 'Cubavisión Internacional',
+    channelRef: 'https://www.youtube.com/channel/UCjYAyKy8xfcXMA3_Gg3tOnw/streams',
+    fallbackVideoId: 'pwgmLCtAqKM',
+  },
 ];
 
 // Tech variant: Tech & business channels
 const TECH_LIVE_CHANNELS: LiveChannel[] = [
-  { id: 'bloomberg', name: 'Bloomberg', handle: '@Bloomberg', fallbackVideoId: 'iEpJwprxDdk' },
-  { id: 'yahoo', name: 'Yahoo Finance', handle: '@YahooFinance', fallbackVideoId: 'KQp-e_XQnDE' },
-  { id: 'cnbc', name: 'CNBC', handle: '@CNBC', fallbackVideoId: '9NyxcX3rhQs' },
-  { id: 'nasa', name: 'NASA TV', handle: '@NASA', fallbackVideoId: 'fO9e9jnhYK8', useFallbackOnly: true },
+  { id: 'bloomberg', name: 'Bloomberg', channelRef: '@Bloomberg', fallbackVideoId: 'iEpJwprxDdk' },
+  { id: 'yahoo', name: 'Yahoo Finance', channelRef: '@YahooFinance', fallbackVideoId: 'KQp-e_XQnDE' },
+  { id: 'cnbc', name: 'CNBC', channelRef: '@CNBC', fallbackVideoId: '9NyxcX3rhQs' },
+  { id: 'nasa', name: 'NASA TV', channelRef: '@NASA', fallbackVideoId: 'fO9e9jnhYK8', useFallbackOnly: true },
 ];
 
 const LIVE_CHANNELS = SITE_VARIANT === 'tech' ? TECH_LIVE_CHANNELS : FULL_LIVE_CHANNELS;
@@ -347,9 +356,11 @@ export class LiveNewsPanel extends Panel {
 
   private async resolveChannelVideo(channel: LiveChannel, forceFallback = false): Promise<void> {
     const useFallbackVideo = channel.useFallbackOnly || forceFallback;
-    const liveVideoId = useFallbackVideo ? null : await fetchLiveVideoId(channel.handle);
-    channel.videoId = liveVideoId || channel.fallbackVideoId;
-    channel.isLive = !!liveVideoId;
+    const resolved = useFallbackVideo
+      ? { videoId: null, isLive: false }
+      : await fetchChannelVideo(channel.channelRef);
+    channel.videoId = resolved.videoId || channel.fallbackVideoId;
+    channel.isLive = resolved.isLive;
   }
 
   private async switchChannel(channel: LiveChannel): Promise<void> {
@@ -407,7 +418,7 @@ export class LiveNewsPanel extends Panel {
   private showEmbedError(channel: LiveChannel, errorCode: number): void {
     const watchUrl = channel.videoId
       ? `https://www.youtube.com/watch?v=${encodeURIComponent(channel.videoId)}`
-      : `https://www.youtube.com/${channel.handle}`;
+      : getYouTubeChannelUrl(channel.channelRef);
 
     this.content.innerHTML = `
       <div class="live-offline">

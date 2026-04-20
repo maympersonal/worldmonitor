@@ -43,15 +43,15 @@ export default async function handler(request) {
   if (isDisallowedOrigin(request)) {
     return new Response(JSON.stringify({ error: 'Origin not allowed' }), {
       status: 403,
-      headers: { 'Content-Type': 'application/json' },
+      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     });
   }
 
   try {
     if (request.method === 'GET') {
-      return await handleGet(request);
+      return await handleGet(request, corsHeaders);
     } else if (request.method === 'POST') {
-      return await handlePost(request);
+      return await handlePost(request, corsHeaders);
     }
     return new Response(JSON.stringify({ error: 'Method not allowed' }), {
       status: 405,
@@ -61,19 +61,19 @@ export default async function handler(request) {
     console.error('[TemporalBaseline] Error:', err);
     return new Response(JSON.stringify({ error: 'Internal error' }), {
       status: 500,
-      headers: { 'Content-Type': 'application/json' },
+      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     });
   }
 }
 
-async function handleGet(request) {
+async function handleGet(request, corsHeaders) {
   const { searchParams } = new URL(request.url);
   const type = searchParams.get('type');
   const region = searchParams.get('region') || 'global';
   const count = parseFloat(searchParams.get('count'));
 
   if (!type || !VALID_TYPES.includes(type) || isNaN(count)) {
-    return json({ error: 'Missing or invalid params: type, count required' }, 400);
+    return json({ error: 'Missing or invalid params: type, count required' }, 400, corsHeaders);
   }
 
   const now = new Date();
@@ -89,7 +89,7 @@ async function handleGet(request) {
       learning: true,
       sampleCount: baseline?.sampleCount || 0,
       samplesNeeded: MIN_SAMPLES,
-    });
+    }, 200, corsHeaders);
   }
 
   const variance = Math.max(0, baseline.m2 / (baseline.sampleCount - 1));
@@ -112,20 +112,37 @@ async function handleGet(request) {
       sampleCount: baseline.sampleCount,
     },
     learning: false,
-  });
+  }, 200, corsHeaders);
 }
 
-async function handlePost(request) {
-  const contentLength = parseInt(request.headers.get('content-length') || '0', 10);
-  if (contentLength > 51200) {
-    return json({ error: 'Payload too large' }, 413);
+async function parseBody(request) {
+  const contentType = (request.headers.get('content-type') || '').toLowerCase();
+
+  if (contentType.includes('application/json')) {
+    return request.json();
   }
 
-  const body = await request.json();
+  const text = await request.text();
+  if (!text) return null;
+
+  try {
+    return JSON.parse(text);
+  } catch {
+    return null;
+  }
+}
+
+async function handlePost(request, corsHeaders) {
+  const contentLength = parseInt(request.headers.get('content-length') || '0', 10);
+  if (contentLength > 51200) {
+    return json({ error: 'Payload too large' }, 413, corsHeaders);
+  }
+
+  const body = await parseBody(request);
   const updates = body?.updates;
 
   if (!Array.isArray(updates) || updates.length === 0) {
-    return json({ error: 'Body must have updates array' }, 400);
+    return json({ error: 'Body must have updates array' }, 400, corsHeaders);
   }
 
   const batch = updates.slice(0, 20);
@@ -162,13 +179,14 @@ async function handlePost(request) {
     await Promise.all(writes);
   }
 
-  return json({ updated: writes.length });
+  return json({ updated: writes.length }, 200, corsHeaders);
 }
 
-function json(data, status = 200) {
+function json(data, status = 200, corsHeaders = {}) {
   return new Response(JSON.stringify(data), {
     status,
     headers: {
+      ...corsHeaders,
       'Content-Type': 'application/json',
       'Cache-Control': 'no-store',
     },
