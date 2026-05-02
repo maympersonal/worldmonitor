@@ -1,7 +1,16 @@
 import { defineConfig, type Plugin } from 'vite';
 import { VitePWA } from 'vite-plugin-pwa';
-import { resolve } from 'path';
-import pkg from './package.json';
+import { readFileSync } from 'node:fs';
+import { resolve } from 'node:path';
+import {
+  getErrorMessage,
+  normalizeYouTubeChannelRef,
+  resolveChannelVideoFromHtml,
+} from './api/youtube/live-shared.js';
+
+const pkg = JSON.parse(readFileSync(new URL('./package.json', import.meta.url), 'utf-8')) as {
+  version: string;
+};
 
 const isE2E = process.env.VITE_E2E === '1';
 const isDesktopRuntime = process.env.VITE_DESKTOP_RUNTIME === '1';
@@ -148,45 +157,36 @@ function youtubeLivePlugin(): Plugin {
         }
 
         try {
-          const channelHandle = channel.startsWith('@') ? channel : `@${channel}`;
-          const liveUrl = `https://www.youtube.com/${channelHandle}/live`;
-          const response = await fetch(liveUrl, {
-            headers: {
-              'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
-            },
-            redirect: 'follow',
-          });
-
-          if (!response.ok) {
+          const normalizedChannelRef = normalizeYouTubeChannelRef(channel);
+          if (!normalizedChannelRef) {
+            res.statusCode = 400;
             res.setHeader('Content-Type', 'application/json');
-            res.setHeader('Cache-Control', 'public, max-age=60');
-            res.end(JSON.stringify({ videoId: null, isLive: false, channel }));
+            res.end(JSON.stringify({ error: 'Invalid channel parameter' }));
             return;
           }
 
-          const html = await response.text();
-          const finalUrl = response.url ? new URL(response.url) : null;
-          const redirectedVideoId = finalUrl?.searchParams.get('v') || null;
-          const validRedirectedId = redirectedVideoId && /^[A-Za-z0-9_-]{11}$/.test(redirectedVideoId)
-            ? redirectedVideoId
-            : null;
-          const videoIdMatch = html.match(/"videoId":"([a-zA-Z0-9_-]{11})"/);
-          const isLiveMatch = /"isLive":\s*true/.test(html) || /"isLiveNow":\s*true/.test(html);
-          const videoId = validRedirectedId || videoIdMatch?.[1] || null;
-          const isLive = Boolean(validRedirectedId || (isLiveMatch && videoId));
+          const resolved = await resolveChannelVideoFromHtml(normalizedChannelRef);
 
+          res.statusCode = 200;
           res.setHeader('Content-Type', 'application/json');
           res.setHeader('Cache-Control', 'public, max-age=300');
           res.end(JSON.stringify({
-            videoId: isLive ? videoId : null,
-            isLive,
+            videoId: resolved.videoId || null,
+            isLive: resolved.isLive === true,
             channel,
+            source: resolved.source || 'html',
           }));
         } catch (error) {
-          console.error(`[YouTube Live] Error:`, error);
-          res.statusCode = 500;
+          res.statusCode = 200;
           res.setHeader('Content-Type', 'application/json');
-          res.end(JSON.stringify({ error: 'Failed to fetch', videoId: null }));
+          res.setHeader('Cache-Control', 'public, max-age=30');
+          res.end(JSON.stringify({
+            error: getErrorMessage(error),
+            videoId: null,
+            isLive: false,
+            channel,
+          }));
+          console.warn('[YouTube Live] Returning offline result:', getErrorMessage(error));
         }
       });
     },
@@ -199,7 +199,7 @@ export default defineConfig({
   },
   plugins: [
     htmlVariantPlugin(),
-    youtubeLivePlugin(),
+    ...(useLocalApiProxy ? [] : [youtubeLivePlugin()]),
     ...(isDesktopRuntime ? [] : [
       VitePWA({
       registerType: 'autoUpdate',

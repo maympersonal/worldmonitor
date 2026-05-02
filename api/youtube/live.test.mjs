@@ -164,3 +164,23 @@ test('returns the latest stream video even when the channel is not live', async 
     globalThis.fetch = originalFetch;
   }
 });
+
+test('returns an offline payload when upstream fetch throws', async () => {
+  __setYouTubeiResolverForTests(async () => null);
+  globalThis.fetch = async () => {
+    throw new TypeError('fetch failed');
+  };
+
+  try {
+    const response = await handler(makeRequest('?channel=%40Bloomberg'));
+    assert.equal(response.status, 200);
+
+    const body = await response.json();
+    assert.equal(body.videoId, null);
+    assert.equal(body.isLive, false);
+    assert.equal(body.error, 'fetch failed');
+  } finally {
+    __resetYouTubeiResolverForTests();
+    globalThis.fetch = originalFetch;
+  }
+});

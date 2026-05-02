@@ -481,6 +481,7 @@ const CUBA_PROVINCE_FEED_DEFINITIONS: CubaProvinceFeedDefinition[] = [
 
 const CUBA_PROVINCIAL_FEEDS: Record<string, Feed[]> = Object.fromEntries(
   CUBA_PROVINCE_FEED_DEFINITIONS.map(({ key, panelName, terms, provincialOutlet }) => {
+    const provinceTextFilterId = key.replace(/([a-z])([A-Z])/g, '$1-$2').toLowerCase();
     const locationQuery = terms.join(' OR ');
     const queryRecent = `(${locationQuery}) AND (Cuba OR cubano OR cubana OR Habana OR Havana) when:10d`;
     const queryExtended = `(${locationQuery}) AND (Cuba OR cubano OR cubana OR Habana OR Havana) when:30d`;
@@ -493,6 +494,7 @@ const CUBA_PROVINCIAL_FEEDS: Record<string, Feed[]> = Object.fromEntries(
         name: provincialOutlet.name,
         url: railwayRss(provincialOutlet.url),
         fallbackUrls: [provinceNewsUrl, provinceNewsFallbackUrl],
+        provinceTextFilterId,
       });
     }
 
@@ -500,6 +502,7 @@ const CUBA_PROVINCIAL_FEEDS: Record<string, Feed[]> = Object.fromEntries(
       name: `${panelName} Noticias`,
       url: provinceNewsUrl,
       fallbackUrls: [provinceNewsFallbackUrl],
+      provinceTextFilterId,
     });
 
     return [
@@ -907,7 +910,7 @@ const FULL_FEEDS: Record<string, Feed[]> = {
     { name: 'Xinhua', url: rss('https://news.google.com/rss/search?q=site:xinhuanet.com+OR+Xinhua+when:1d&hl=en-US&gl=US&ceid=US:en') },
     { name: 'TASS', url: rss('https://news.google.com/rss/search?q=site:tass.com+OR+TASS+Russia+when:1d&hl=en-US&gl=US&ceid=US:en') },
     { name: 'Kyiv Independent', url: rss('https://news.google.com/rss/search?q=site:kyivindependent.com+when:3d&hl=en-US&gl=US&ceid=US:en') },
-    { name: 'Moscow Times', url: rss('https://www.themoscowtimes.com/rss/news') },
+    { name: 'Moscow Times', url: googleNewsRss('(site:themoscowtimes.com+OR+site:ru.themoscowtimes.com)+when:7d') },
   ],
   africa: [
     { name: 'Africa News', url: rss('https://news.google.com/rss/search?q=(Africa+OR+Nigeria+OR+Kenya+OR+"South+Africa"+OR+Ethiopia)+when:2d&hl=en-US&gl=US&ceid=US:en') },
@@ -1035,10 +1038,26 @@ const FULL_FEEDS: Record<string, Feed[]> = {
       url: googleNewsRss('(site:cubadebate.cu+OR+"Cubadebate")+when:7d', 'es-419', 'US', 'US:es-419'),
       fallbackUrls: [railwayRss('https://www.cubadebate.cu/feed')],
     },
-    { name: 'Granma', url: rss('https://www.granma.cu/feed') },
-    { name: 'JuventudRevelde', url: rss('https://www.juventudrebelde.cu/get/rss/grupo/generales') },
-    { name: 'Trabajadores', url: rss('https://www.juventudrebelde.cu/get/rss/grupo/generales') },
-    { name: 'Tribuna', url: rss('https://www.trabajadores.cu/feed') },
+    {
+      name: 'Granma',
+      url: googleNewsRss('(site:granma.cu+OR+"Granma")+when:7d', 'es-419', 'US', 'US:es-419'),
+      fallbackUrls: [railwayRss('https://www.granma.cu/feed')],
+    },
+    {
+      name: 'JuventudRevelde',
+      url: googleNewsRss('(site:juventudrebelde.cu+OR+"Juventud+Rebelde")+when:7d', 'es-419', 'US', 'US:es-419'),
+      fallbackUrls: [rss('https://www.juventudrebelde.cu/get/rss/grupo/generales')],
+    },
+    {
+      name: 'Trabajadores',
+      url: googleNewsRss('(site:trabajadores.cu+OR+"Trabajadores")+when:7d', 'es-419', 'US', 'US:es-419'),
+      fallbackUrls: [railwayRss('https://www.trabajadores.cu/feed')],
+    },
+    {
+      name: 'Tribuna',
+      url: googleNewsRss('(site:tribuna.cu+OR+"Tribuna+de+La+Habana")+when:7d', 'es-419', 'US', 'US:es-419'),
+      fallbackUrls: [railwayRss('https://www.tribuna.cu/feed')],
+    },
     {
       name: 'PrensaLatina',
       url: googleNewsRss('(site:prensalatina.cu+OR+site:prensa-latina.cu+OR+"Prensa+Latina")+when:7d', 'es-419', 'US', 'US:es-419'),

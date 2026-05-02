@@ -5,6 +5,7 @@ import { classifyByKeyword, classifyWithAI } from './threat-classifier';
 import { inferGeoHubsFromTitle } from './geo-hub-index';
 import { getPersistentCache, setPersistentCache } from './persistent-cache';
 import { ingestHeadlines } from './trending-keywords';
+import { matchesCubaProvinceNewsText } from './cuba-province-news-filter';
 
 // Per-feed circuit breaker: track failures and cooldowns
 const FEED_COOLDOWN_MS = 5 * 60 * 1000; // 5 minutes after failure
@@ -249,6 +250,11 @@ function isCubaScopedFeed(feedName: string): boolean {
     || CUBA_AI_FILTER_FEED_NAMES.has(feedName)
     || CUBA_ENERGY_FILTER_FEED_NAMES.has(feedName)
     || CUBA_CULTURE_FILTER_FEED_NAMES.has(feedName);
+}
+
+function shouldKeepProvinceScopedHeadline(feed: Feed, title: string, snippet: string): boolean {
+  if (!feed.provinceTextFilterId) return true;
+  return matchesCubaProvinceNewsText(feed.provinceTextFilterId, `${title} ${snippet}`);
 }
 
 function toSerializable(items: NewsItem[]): Array<Omit<NewsItem, 'pubDate'> & { pubDate: string }> {
@@ -554,6 +560,7 @@ export async function fetchFeed(feed: Feed): Promise<NewsItem[]> {
                 link,
                 pubDate,
                 isAlert,
+                snippet,
                 threat,
                 ...(topGeo && { lat: topGeo.hub.lat, lon: topGeo.hub.lon, locationName: topGeo.hub.name }),
               } satisfies NewsItem,
@@ -561,7 +568,10 @@ export async function fetchFeed(feed: Feed): Promise<NewsItem[]> {
             };
           });
         const filteredCandidates = parsedCandidates
-          .filter(({ item, snippet }) => shouldKeepCubaScopedHeadline(feed.name, item.title, snippet));
+          .filter(({ item, snippet }) =>
+            shouldKeepCubaScopedHeadline(feed.name, item.title, snippet)
+            && shouldKeepProvinceScopedHeadline(feed, item.title, snippet),
+          );
 
         let effectiveCandidates = filteredCandidates;
         if (hasScopedCubaFilter && filteredCandidates.length === 0 && parsedCandidates.length > 0) {
@@ -577,6 +587,9 @@ export async function fetchFeed(feed: Feed): Promise<NewsItem[]> {
 
         if (hasScopedCubaFilter && filteredCandidates.length < parsedCandidates.length) {
           console.info(`[RSS] ${feed.name} filtered ${parsedCandidates.length - filteredCandidates.length} off-topic items`);
+        }
+        if (feed.provinceTextFilterId && filteredCandidates.length < parsedCandidates.length) {
+          console.info(`[RSS] ${feed.name} province filter removed ${parsedCandidates.length - filteredCandidates.length} items`);
         }
 
         // If this attempt yields no headlines, try configured fallbacks before

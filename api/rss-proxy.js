@@ -111,6 +111,28 @@ function buildSnapshotResponse(snapshot, corsHeaders, extraHeaders = {}) {
   });
 }
 
+function setRelaySnapshot(feedUrl, relayResult) {
+  setFeedSnapshot(feedUrl, {
+    body: relayResult.body,
+    contentType: relayResult.contentType,
+    etag: '',
+    lastModified: '',
+  });
+}
+
+function buildRelayResponse(relayResult, corsHeaders, feedState = 'relay-recovered') {
+  return new Response(relayResult.body, {
+    status: 200,
+    headers: {
+      'Content-Type': relayResult.contentType,
+      'Cache-Control': 'public, max-age=300, s-maxage=300, stale-while-revalidate=60',
+      'X-RSS-Upstream': 'railway-relay',
+      'X-Feed-State': feedState,
+      ...corsHeaders,
+    },
+  });
+}
+
 async function fetchRelayFallback(feedUrl, timeoutMs) {
   const relayBaseUrl = getRelayBaseUrl();
   if (!relayBaseUrl) return null;
@@ -397,10 +419,15 @@ export default async function handler(req) {
     });
   }
 
+  let snapshot = null;
+  let timeout = 12000;
+
   try {
     const parsedUrl = new URL(feedUrl);
-    const snapshot = getFeedSnapshot(feedUrl);
+    snapshot = getFeedSnapshot(feedUrl);
     const blockedUntil = getBlockedUntil(feedUrl);
+    const isGoogleNews = feedUrl.includes('news.google.com');
+    timeout = isGoogleNews ? 20000 : 12000;
 
     // Security: Check if domain is allowed
     if (!isAllowedHostname(parsedUrl.hostname)) {
@@ -434,10 +461,6 @@ export default async function handler(req) {
       });
     }
 
-    // Google News is slow - use longer timeout
-    const isGoogleNews = feedUrl.includes('news.google.com');
-    const timeout = isGoogleNews ? 20000 : 12000;
-
     const response = await fetchFeedWithRetry(feedUrl, timeout);
 
     if (response.status === 304 && snapshot) {
@@ -462,23 +485,12 @@ export default async function handler(req) {
         const relayResult = await fetchRelayFallback(feedUrl, timeout);
         if (relayResult) {
           clearBlockedFeed(feedUrl);
-          setFeedSnapshot(feedUrl, {
-            body: relayResult.body,
-            contentType: relayResult.contentType,
-            etag: '',
-            lastModified: '',
-          });
-
-          return new Response(relayResult.body, {
-            status: 200,
-            headers: {
-              'Content-Type': relayResult.contentType,
-              'Cache-Control': 'public, max-age=300, s-maxage=300, stale-while-revalidate=60',
-              'X-RSS-Upstream': 'railway-relay',
-              'X-Feed-State': upstreamStatus === 403 ? 'relay-recovered-blocked' : 'relay-recovered',
-              ...corsHeaders,
-            },
-          });
+          setRelaySnapshot(feedUrl, relayResult);
+          return buildRelayResponse(
+            relayResult,
+            corsHeaders,
+            upstreamStatus === 403 ? 'relay-recovered-blocked' : 'relay-recovered',
+          );
         }
       }
 
@@ -535,6 +547,32 @@ export default async function handler(req) {
   } catch (error) {
     const isTimeout = error instanceof Error && error.name === 'AbortError';
     const message = error instanceof Error ? error.message : 'Unknown error';
+
+    const relayResult = await fetchRelayFallback(feedUrl, timeout);
+    if (relayResult) {
+      clearBlockedFeed(feedUrl);
+      setRelaySnapshot(feedUrl, relayResult);
+      console.warn('[RSS PROXY] upstream request threw; recovered via relay', {
+        url: feedUrl,
+        message,
+      });
+      return buildRelayResponse(
+        relayResult,
+        corsHeaders,
+        isTimeout ? 'relay-recovered-timeout' : 'relay-recovered-error',
+      );
+    }
+
+    if (snapshot) {
+      console.warn('[RSS PROXY] upstream request threw; serving stale snapshot', {
+        url: feedUrl,
+        message,
+      });
+      return buildSnapshotResponse(snapshot, corsHeaders, {
+        'X-Feed-State': isTimeout ? 'stale-timeout' : 'stale-error',
+      });
+    }
+
     console.error('RSS proxy error:', feedUrl, message);
     return new Response(JSON.stringify({
       error: isTimeout ? 'Feed timeout' : 'Failed to fetch feed',

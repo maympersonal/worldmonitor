@@ -93,6 +93,11 @@ import { STOCK_EXCHANGES, FINANCIAL_CENTERS, CENTRAL_BANKS, COMMODITY_HUBS } fro
 import { isDesktopRuntime } from '@/services/runtime';
 import { isFeatureAvailable } from '@/services/runtime-config';
 import { invokeTauri } from '@/services/tauri-bridge';
+import {
+  findCubaProvinceNewsFilterById,
+  matchesCubaProvinceNewsText,
+  type CubaProvinceNewsFilter,
+} from '@/services/cuba-province-news-filter';
 import { getCountryAtCoordinates, hasCountryGeometry, isCoordinateInCountry, preloadCountryGeometry } from '@/services/country-geometry';
 import { initI18n, t, changeLanguage, getCurrentLanguage, LANGUAGES } from '@/services/i18n';
 
@@ -122,101 +127,6 @@ interface DesktopRuntimeInfo {
 }
 
 const CYBER_LAYER_ENABLED = import.meta.env.VITE_ENABLE_CYBER_LAYER === 'true';
-
-interface ProvinceNewsFilter {
-  id: string;
-  label: string;
-  terms: string[];
-}
-
-const CUBA_PROVINCE_NEWS_FILTERS: Record<string, ProvinceNewsFilter> = {
-  'pinar-del-rio': {
-    id: 'pinar-del-rio',
-    label: 'Pinar del Rio',
-    terms: ['pinar del rio', 'viñales', 'vinales', 'consolacion del sur', 'consolación del sur'],
-  },
-  artemisa: {
-    id: 'artemisa',
-    label: 'Artemisa',
-    terms: ['artemisa', 'san antonio de los baños', 'san antonio de los banos', 'mariel'],
-  },
-  'la-habana': {
-    id: 'la-habana',
-    label: 'La Habana',
-    terms: ['la habana', 'havana', 'habana vieja', 'centro habana'],
-  },
-  mayabeque: {
-    id: 'mayabeque',
-    label: 'Mayabeque',
-    terms: ['mayabeque', 'san jose de las lajas', 'san josé de las lajas', 'melena del sur'],
-  },
-  matanzas: {
-    id: 'matanzas',
-    label: 'Matanzas',
-    terms: ['matanzas', 'varadero', 'cardenas', 'cárdenas'],
-  },
-  cienfuegos: {
-    id: 'cienfuegos',
-    label: 'Cienfuegos',
-    terms: ['cienfuegos', 'rodas', 'aguada de pasajeros'],
-  },
-  'villa-clara': {
-    id: 'villa-clara',
-    label: 'Villa Clara',
-    terms: ['villa clara', 'santa clara', 'sagua la grande', 'caibarien', 'caibarién'],
-  },
-  'sancti-spiritus': {
-    id: 'sancti-spiritus',
-    label: 'Sancti Spiritus',
-    terms: ['sancti spiritus', 'sancti spíritus', 'trinidad cuba', 'jatibonico'],
-  },
-  'ciego-de-avila': {
-    id: 'ciego-de-avila',
-    label: 'Ciego de Avila',
-    terms: ['ciego de avila', 'ciego de ávila', 'moron', 'morón', 'cayo coco'],
-  },
-  camaguey: {
-    id: 'camaguey',
-    label: 'Camaguey',
-    terms: ['camaguey', 'camagüey', 'nuevitas', 'florida cuba'],
-  },
-  'las-tunas': {
-    id: 'las-tunas',
-    label: 'Las Tunas',
-    terms: ['las tunas', 'puerto padre', 'jobabo'],
-  },
-  granma: {
-    id: 'granma',
-    label: 'Granma',
-    terms: ['granma', 'bayamo', 'manzanillo cuba', 'pilon cuba', 'pilón cuba'],
-  },
-  holguin: {
-    id: 'holguin',
-    label: 'Holguin',
-    terms: ['holguin', 'holguín', 'moa cuba', 'banes'],
-  },
-  'santiago-de-cuba': {
-    id: 'santiago-de-cuba',
-    label: 'Santiago de Cuba',
-    terms: ['santiago de cuba', 'palma soriano', 'contramaestre'],
-  },
-  guantanamo: {
-    id: 'guantanamo',
-    label: 'Guantanamo',
-    terms: ['guantanamo', 'guantánamo', 'baracoa', 'maisi', 'maisi cuba', 'imias', 'imías'],
-  },
-  'isla-de-la-juventud': {
-    id: 'isla-de-la-juventud',
-    label: 'Isla de la Juventud',
-    terms: ['isla de la juventud', 'nueva gerona', 'isle of youth'],
-  },
-};
-
-const normalizeProvinceText = (value: string): string =>
-  value
-    .toLowerCase()
-    .normalize('NFD')
-    .replace(/[\u0300-\u036f]/g, '');
 
 export interface CountryBriefSignals {
   protests: number;
@@ -286,7 +196,7 @@ export class App {
   private pendingDeepLinkCountry: string | null = null;
   private briefRequestToken = 0;
   private readonly isDesktopApp = isDesktopRuntime();
-  private readonly activeProvinceNewsFilter: ProvinceNewsFilter | null;
+  private readonly activeProvinceNewsFilter: CubaProvinceNewsFilter | null;
   private optionalMLInitPromise: Promise<void> | null = null;
 
   constructor(containerId: string) {
@@ -3526,21 +3436,21 @@ export class App {
       .replace(/-+/g, '-');
   }
 
-  private static resolveProvinceNewsFilter(search: string): ProvinceNewsFilter | null {
+  private static resolveProvinceNewsFilter(search: string): CubaProvinceNewsFilter | null {
     const params = new URLSearchParams(search);
     const rawProvince = params.get('province');
     if (!rawProvince) return null;
     const normalized = App.normalizeProvinceId(rawProvince);
-    return CUBA_PROVINCE_NEWS_FILTERS[normalized] ?? null;
+    return findCubaProvinceNewsFilterById(normalized);
   }
 
   private filterNewsByActiveProvince(items: NewsItem[]): NewsItem[] {
     if (!this.activeProvinceNewsFilter) return items;
-    const normalizedTerms = this.activeProvinceNewsFilter.terms.map((term) => normalizeProvinceText(term));
+    const provinceFilter = this.activeProvinceNewsFilter;
 
     return items.filter((item) => {
-      const haystack = normalizeProvinceText(`${item.title} ${item.locationName || ''}`);
-      return normalizedTerms.some((term) => haystack.includes(term));
+      const haystack = `${item.title} ${item.snippet || ''} ${item.locationName || ''}`;
+      return matchesCubaProvinceNewsText(provinceFilter, haystack);
     });
   }
 

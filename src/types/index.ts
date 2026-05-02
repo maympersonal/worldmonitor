@@ -8,6 +8,7 @@ export interface Feed {
   region?: string;
   propagandaRisk?: PropagandaRisk;
   stateAffiliated?: string;  // e.g., "Russia", "China", "Iran"
+  provinceTextFilterId?: string;
 }
 
 export type { ThreatClassification, ThreatLevel, EventCategory } from '@/services/threat-classifier';
@@ -18,6 +19,7 @@ export interface NewsItem {
   link: string;
   pubDate: Date;
   isAlert: boolean;
+  snippet?: string;
   monitorColor?: string;
   tier?: number;
   threat?: import('@/services/threat-classifier').ThreatClassification;
