@@ -68,6 +68,7 @@ import {
   ServiceStatusPanel,
   RuntimeConfigPanel,
   InsightsPanel,
+  CubaBriefPanel,
   TechReadinessPanel,
   MacroSignalsPanel,
   ETFFlowsPanel,
@@ -908,10 +909,10 @@ export class App {
 
       let data: Record<string, unknown> | null = null;
       try {
-        const res = await fetch('/api/country-intel', {
+        const res = await fetch('/api/ai', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ country, code, context }),
+          body: JSON.stringify({ task: 'country_brief', country, code, context }),
         });
         data = await res.json();
       } catch { /* server unreachable */ }
@@ -947,7 +948,7 @@ export class App {
           if (lines.length > 0) {
             this.countryBriefPage!.updateBrief({ brief: lines.join('\n'), country, code, fallback: true });
           } else {
-            this.countryBriefPage!.updateBrief({ brief: '', country, code, error: 'No AI service available. Configure GROQ_API_KEY in Settings for full briefs.' });
+            this.countryBriefPage!.updateBrief({ brief: '', country, code, error: 'No AI service available. Configure DASHSCOPE_API_KEY in Settings for full briefs.' });
           }
         }
       }
@@ -2303,6 +2304,10 @@ export class App {
     const insightsPanel = new InsightsPanel();
     this.panels['insights'] = insightsPanel;
 
+    if (SITE_VARIANT === 'full') {
+      this.panels['cuba-brief'] = new CubaBriefPanel();
+    }
+
     // Add panels to grid in saved order
     // Use DEFAULT_PANELS keys for variant-aware panel order
     const defaultOrder = Object.keys(DEFAULT_PANELS).filter(k => k !== 'map');
@@ -3227,6 +3232,10 @@ export class App {
   private renderNewsForCategory(category: string, items: NewsItem[]): void {
     const provinceScopedItems = this.filterNewsByActiveProvince(items);
     this.newsByCategory[category] = provinceScopedItems;
+    if (category === 'cuba') {
+      const cubaBriefPanel = this.panels['cuba-brief'] as CubaBriefPanel | undefined;
+      cubaBriefPanel?.setCubaNews(provinceScopedItems, { allowBrowserFallback: true });
+    }
     const panel = this.newsPanels[category];
     if (!panel) return;
 

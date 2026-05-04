@@ -394,7 +394,7 @@ export class InsightsPanel extends Panel {
     const statsHtml = this.renderStats(clusters);
     const missedHtml = this.renderMissedStories();
 
-    this.setContent(`
+    return `
       ${briefHtml}
       ${focalPointsHtml}
       ${convergenceHtml}
@@ -405,7 +405,7 @@ export class InsightsPanel extends Panel {
         ${breakingHtml}
       </div>
       ${missedHtml}
-    `);
+    `;
   }
 
   private renderWorldBrief(brief: string): string {

@@ -10280,6 +10280,37 @@ a.prediction-link:hover {
   margin-bottom: 12px;
 }
 
+.insights-tabs {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+
+.insights-tab {
+  appearance: none;
+  border: 1px solid var(--overlay-medium);
+  background: var(--overlay-light);
+  color: var(--text-muted);
+  border-radius: 999px;
+  padding: 6px 12px;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  cursor: pointer;
+  transition: background 0.15s ease, color 0.15s ease, border-color 0.15s ease;
+}
+
+.insights-tab:hover {
+  background: var(--overlay-medium);
+  color: var(--accent);
+}
+
+.insights-tab.active {
+  background: rgba(79, 195, 247, 0.12);
+  color: var(--accent);
+  border-color: rgba(79, 195, 247, 0.35);
+}
+
 .insights-section-title {
   font-size: 9px;
   text-transform: uppercase;
@@ -10306,6 +10337,12 @@ a.prediction-link:hover {
   font-size: 12px;
   line-height: 1.5;
   color: var(--text);
+}
+
+.insights-brief-subtitle {
+  margin-top: 10px;
+  color: var(--text-faint);
+  font-size: 11px;
 }
 
 .insights-unavailable,
@@ -10407,6 +10444,10 @@ a.prediction-link:hover {
   padding: 8px;
   background: var(--overlay-subtle);
   border-radius: 4px;
+}
+
+.cuba-stats {
+  justify-content: flex-start;
 }
 
 .insight-stat {
@@ -10687,6 +10728,50 @@ a.prediction-link:hover {
   justify-content: space-between;
   align-items: center;
   margin-bottom: 6px;
+}
+
+.cuba-headline-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.cuba-headline-item {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 10px 12px;
+  border-radius: 8px;
+  border: 1px solid var(--overlay-light);
+  background: var(--overlay-subtle);
+  text-decoration: none;
+}
+
+.cuba-headline-item:hover {
+  background: var(--overlay-light);
+  border-color: var(--overlay-medium);
+}
+
+.cuba-headline-title {
+  color: var(--text);
+  font-size: 12px;
+  line-height: 1.4;
+}
+
+.cuba-headline-meta {
+  color: var(--text-faint);
+  font-size: 10px;
+}
+
+.cuba-brief-panel {
+  padding: 2px 0;
+}
+
+.cuba-brief-paragraph {
+  margin: 0;
+  color: var(--text);
+  font-size: 13px;
+  line-height: 1.65;
 }
 
 .focal-point-name {

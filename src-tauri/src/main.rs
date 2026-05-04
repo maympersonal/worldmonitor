@@ -25,9 +25,8 @@ const MENU_FILE_SETTINGS_ID: &str = "file.settings";
 const MENU_FILE_CUBA_PROVINCES_ID: &str = "file.cuba_provinces";
 const MENU_HELP_GITHUB_ID: &str = "help.github";
 const MENU_HELP_DEVTOOLS_ID: &str = "help.devtools";
-const SUPPORTED_SECRET_KEYS: [&str; 18] = [
-    "GROQ_API_KEY",
-    "OPENROUTER_API_KEY",
+const SUPPORTED_SECRET_KEYS: [&str; 17] = [
+    "DASHSCOPE_API_KEY",
     "FRED_API_KEY",
     "EIA_API_KEY",
     "CLOUDFLARE_API_TOKEN",

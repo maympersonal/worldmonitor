@@ -1,14 +1,14 @@
 /**
  * Summarization Service with Fallback Chain
  * Server-side Redis caching handles cross-user deduplication
- * Fallback: Groq -> OpenRouter -> Browser T5
+ * Fallback: Alibaba Qwen -> Browser T5
  */
 
 import { mlWorker } from './ml-worker';
 import { SITE_VARIANT } from '@/config';
 import { isFeatureAvailable } from './runtime-config';
 
-export type SummarizationProvider = 'groq' | 'openrouter' | 'browser' | 'cache';
+export type SummarizationProvider = 'alibaba' | 'browser' | 'cache';
 
 export interface SummarizationResult {
   summary: string;
@@ -23,63 +23,38 @@ export interface GenerateSummaryOptions {
 }
 
 function hasRemoteSummaryProvider(): boolean {
-  return isFeatureAvailable('aiGroq') || isFeatureAvailable('aiOpenRouter');
+  return isFeatureAvailable('aiAlibabaQwen');
 }
 
-async function tryGroq(headlines: string[], geoContext?: string): Promise<SummarizationResult | null> {
-  if (!isFeatureAvailable('aiGroq')) return null;
+async function tryAlibaba(headlines: string[], geoContext?: string): Promise<SummarizationResult | null> {
+  if (!isFeatureAvailable('aiAlibabaQwen')) return null;
   try {
-    const response = await fetch('/api/groq-summarize', {
+    const response = await fetch('/api/ai', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ headlines, mode: 'brief', geoContext, variant: SITE_VARIANT }),
+      body: JSON.stringify({ task: 'summary', headlines, mode: 'brief', geoContext, variant: SITE_VARIANT }),
     });
 
     if (!response.ok) {
       const data = await response.json().catch(() => ({}));
       if (data.fallback) return null;
-      throw new Error(`Groq error: ${response.status}`);
+      throw new Error(`Alibaba error: ${response.status}`);
     }
 
     const data = await response.json();
-    const provider = data.cached ? 'cache' : 'groq';
-    console.log(`[Summarization] ${provider === 'cache' ? 'Redis cache hit' : 'Groq success'}:`, data.model);
+    if (data.fallback || data.skipped || typeof data.summary !== 'string' || !data.summary.trim()) {
+      return null;
+    }
+
+    const provider = data.cached ? 'cache' : 'alibaba';
+    console.log(`[Summarization] ${provider === 'cache' ? 'Redis cache hit' : 'Alibaba success'}:`, data.model);
     return {
       summary: data.summary,
       provider: provider as SummarizationProvider,
       cached: !!data.cached,
     };
   } catch (error) {
-    console.warn('[Summarization] Groq failed:', error);
-    return null;
-  }
-}
-
-async function tryOpenRouter(headlines: string[], geoContext?: string): Promise<SummarizationResult | null> {
-  if (!isFeatureAvailable('aiOpenRouter')) return null;
-  try {
-    const response = await fetch('/api/openrouter-summarize', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ headlines, mode: 'brief', geoContext, variant: SITE_VARIANT }),
-    });
-
-    if (!response.ok) {
-      const data = await response.json().catch(() => ({}));
-      if (data.fallback) return null;
-      throw new Error(`OpenRouter error: ${response.status}`);
-    }
-
-    const data = await response.json();
-    const provider = data.cached ? 'cache' : 'openrouter';
-    console.log(`[Summarization] ${provider === 'cache' ? 'Redis cache hit' : 'OpenRouter success'}:`, data.model);
-    return {
-      summary: data.summary,
-      provider: provider as SummarizationProvider,
-      cached: !!data.cached,
-    };
-  } catch (error) {
-    console.warn('[Summarization] OpenRouter failed:', error);
+    console.warn('[Summarization] Alibaba failed:', error);
     return null;
   }
 }
@@ -113,7 +88,7 @@ async function tryBrowserT5(headlines: string[]): Promise<SummarizationResult | 
 }
 
 /**
- * Generate a summary using the fallback chain: Groq -> OpenRouter -> Browser T5
+ * Generate a summary using the fallback chain: Alibaba Qwen -> Browser T5
  * Server-side Redis caching is handled by the API endpoints
  * @param geoContext Optional geographic signal context to include in the prompt
  */
@@ -135,37 +110,30 @@ export async function generateSummary(
     console.log(
       allowBrowserFallback
         ? '[Summarization] No summary providers available'
-        : '[Summarization] Remote providers unavailable and browser fallback disabled'
+        : '[Summarization] Remote provider unavailable and browser fallback disabled'
     );
     return null;
   }
 
-  const totalSteps = allowBrowserFallback ? 3 : 2;
+  const totalSteps = allowBrowserFallback ? 2 : 1;
 
-  // Step 1: Try Groq (fast, 14.4K/day with 8b-instant + Redis cache)
-  onProgress?.(1, totalSteps, 'Connecting to Groq AI...');
-  const groqResult = await tryGroq(headlines, geoContext);
-  if (groqResult) {
-    return groqResult;
-  }
-
-  // Step 2: Try OpenRouter (fallback, 50/day + Redis cache)
-  onProgress?.(2, totalSteps, 'Trying OpenRouter...');
-  const openRouterResult = await tryOpenRouter(headlines, geoContext);
-  if (openRouterResult) {
-    return openRouterResult;
+  // Step 1: Try Alibaba Qwen (shared server route + Redis cache)
+  onProgress?.(1, totalSteps, 'Connecting to Alibaba Qwen...');
+  const alibabaResult = await tryAlibaba(headlines, geoContext);
+  if (alibabaResult) {
+    return alibabaResult;
   }
 
   if (!allowBrowserFallback) {
     if (remoteAvailable) {
       console.log('[Summarization] Browser fallback skipped for this request');
-      console.warn('[Summarization] All remote providers failed');
+      console.warn('[Summarization] Remote provider failed');
     }
     return null;
   }
 
-  // Step 3: Try Browser T5 (local, unlimited but slower)
-  onProgress?.(3, totalSteps, 'Loading local AI model...');
+  // Step 2: Try Browser T5 (local, unlimited but slower)
+  onProgress?.(2, totalSteps, 'Loading local AI model...');
   const browserResult = await tryBrowserT5(headlines);
   if (browserResult) {
     return browserResult;

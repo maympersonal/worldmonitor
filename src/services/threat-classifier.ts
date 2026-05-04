@@ -305,10 +305,10 @@ function flushBatch(): void {
   const variant = batch[0]!.variant;
   const titles = batch.map(j => j.title);
 
-  fetch('/api/classify-batch', {
+  fetch('/api/ai', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ titles, variant }),
+    body: JSON.stringify({ task: 'classify_batch', titles, variant }),
   })
     .then(resp => {
       if (resp.status === 429 || resp.status >= 500) {

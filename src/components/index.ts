@@ -26,6 +26,7 @@ export * from './TechEventsPanel';
 export * from './ServiceStatusPanel';
 export * from './RuntimeConfigPanel';
 export * from './InsightsPanel';
+export * from './CubaBriefPanel';
 export * from './TechReadinessPanel';
 export * from './SatelliteFiresPanel';
 export * from './MacroSignalsPanel';

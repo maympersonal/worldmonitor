@@ -6,8 +6,7 @@ World Monitor desktop now uses a runtime configuration schema with per-feature t
 
 The desktop vault schema supports the following 17 keys used by services and relays:
 
-- `GROQ_API_KEY`
-- `OPENROUTER_API_KEY`
+- `DASHSCOPE_API_KEY`
 - `FRED_API_KEY`
 - `EIA_API_KEY`
 - `FINNHUB_API_KEY`
@@ -18,6 +17,7 @@ The desktop vault schema supports the following 17 keys used by services and rel
 - `ABUSEIPDB_API_KEY`
 - `NASA_FIRMS_API_KEY`
 - `WINGBITS_API_KEY`
+- `WS_RELAY_URL`
 - `VITE_OPENSKY_RELAY_URL`
 - `OPENSKY_CLIENT_ID`
 - `OPENSKY_CLIENT_SECRET`
@@ -44,7 +44,7 @@ Secrets are **not stored in plaintext files** by the frontend.
 
 If required secrets are missing/disabled:
 
-- Summarization: Groq/OpenRouter disabled, browser model fallback.
+- Summarization: Alibaba Qwen disabled, browser model fallback.
 - FRED / EIA / Finnhub: economic, oil analytics, and stock data return empty state.
 - Cloudflare / ACLED: outages/conflicts return empty state.
 - Cyber threat feeds (URLhaus, OTX, AbuseIPDB): cyber threat layer returns empty state.
