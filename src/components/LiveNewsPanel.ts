@@ -39,46 +39,78 @@ declare global {
   }
 }
 
-interface LiveChannel {
+type LiveChannelSource = 'youtube' | 'embed';
+
+interface BaseLiveChannel {
   id: string;
   name: string;
+  source: LiveChannelSource;
+  isLive?: boolean;
+}
+
+interface YouTubeLiveChannel extends BaseLiveChannel {
+  source: 'youtube';
   channelRef: string; // YouTube channel path or full URL
   fallbackVideoId?: string; // Fallback if no live stream detected
   videoId?: string; // Dynamically fetched live video ID
-  isLive?: boolean;
   useFallbackOnly?: boolean; // Skip auto-detection, always use fallback
 }
 
+interface EmbedLiveChannel extends BaseLiveChannel {
+  source: 'embed';
+  embedUrl: string;
+  watchUrl: string;
+}
+
+type LiveChannel = YouTubeLiveChannel | EmbedLiveChannel;
+
 const SITE_VARIANT = import.meta.env.VITE_VARIANT || 'full';
 
-// Full variant: World news channels (24/7 live streams)
+// Full + finance variants: Cuban TV live channels from teveo.
 const FULL_LIVE_CHANNELS: LiveChannel[] = [
-  // { id: 'bloomberg', name: 'Bloomberg', channelRef: '@Bloomberg', fallbackVideoId: 'iEpJwprxDdk' },
-  // { id: 'sky', name: 'SkyNews', channelRef: '@SkyNews', fallbackVideoId: 'YDvsBbKfLPA' },
-  // { id: 'euronews', name: 'Euronews', channelRef: '@euabortnews', fallbackVideoId: 'pykpO5kQJ98' },
-  // { id: 'dw', name: 'DW', channelRef: '@DWNews', fallbackVideoId: 'LuKwFajn37U' },
-  // { id: 'cnbc', name: 'CNBC', channelRef: '@CNBC', fallbackVideoId: '9NyxcX3rhQs' },
-  // { id: 'france24', name: 'France24', channelRef: '@FRANCE24English', fallbackVideoId: 'Ap-UM1O9RBU' },
   {
     id: 'canal-caribe',
     name: 'Canal Caribe',
-    channelRef: 'https://www.youtube.com/@CanalCaribeCuba/live',
-    fallbackVideoId: 'xLQtzck_Gks',
+    source: 'embed',
+    embedUrl: 'https://teveo.cu/live/video/d8wmFxA7rPfyctms/embed',
+    watchUrl: 'https://teveo.cu/live/video/d8wmFxA7rPfyctms',
+  },
+  {
+    id: 'cubavision',
+    name: 'Cubavisión',
+    source: 'embed',
+    embedUrl: 'https://teveo.cu/live/video/G9bkUAyaJDwyJh5S/embed',
+    watchUrl: 'https://teveo.cu/live/video/G9bkUAyaJDwyJh5S',
   },
   {
     id: 'cubavision-internacional',
     name: 'Cubavisión Internacional',
-    channelRef: 'https://www.youtube.com/channel/UCjYAyKy8xfcXMA3_Gg3tOnw/streams',
-    fallbackVideoId: 'pwgmLCtAqKM',
+    source: 'embed',
+    embedUrl: 'https://teveo.cu/live/video/AKDdWvMTYzfsfnNJ/embed',
+    watchUrl: 'https://teveo.cu/live/video/AKDdWvMTYzfsfnNJ',
+  },
+  {
+    id: 'multivision',
+    name: 'Multivisión',
+    source: 'embed',
+    embedUrl: 'https://teveo.cu/live/video/ubXyE5z29hgjJHSH/embed',
+    watchUrl: 'https://teveo.cu/live/video/ubXyE5z29hgjJHSH',
+  },
+  {
+    id: 'tele-rebelde',
+    name: 'Tele Rebelde',
+    source: 'embed',
+    embedUrl: 'https://teveo.cu/live/video/zeZmyVqvdkR4GWRu/embed',
+    watchUrl: 'https://teveo.cu/live/video/zeZmyVqvdkR4GWRu',
   },
 ];
 
 // Tech variant: Tech & business channels
 const TECH_LIVE_CHANNELS: LiveChannel[] = [
-  { id: 'bloomberg', name: 'Bloomberg', channelRef: '@Bloomberg', fallbackVideoId: 'iEpJwprxDdk' },
-  { id: 'yahoo', name: 'Yahoo Finance', channelRef: '@YahooFinance', fallbackVideoId: 'KQp-e_XQnDE' },
-  { id: 'cnbc', name: 'CNBC', channelRef: '@CNBC', fallbackVideoId: '9NyxcX3rhQs' },
-  { id: 'nasa', name: 'NASA TV', channelRef: '@NASA', fallbackVideoId: 'fO9e9jnhYK8', useFallbackOnly: true },
+  { id: 'bloomberg', name: 'Bloomberg', source: 'youtube', channelRef: '@Bloomberg', fallbackVideoId: 'iEpJwprxDdk' },
+  { id: 'yahoo', name: 'Yahoo Finance', source: 'youtube', channelRef: '@YahooFinance', fallbackVideoId: 'KQp-e_XQnDE' },
+  { id: 'cnbc', name: 'CNBC', source: 'youtube', channelRef: '@CNBC', fallbackVideoId: '9NyxcX3rhQs' },
+  { id: 'nasa', name: 'NASA TV', source: 'youtube', channelRef: '@NASA', fallbackVideoId: 'fO9e9jnhYK8', useFallbackOnly: true },
 ];
 
 const LIVE_CHANNELS = SITE_VARIANT === 'tech' ? TECH_LIVE_CHANNELS : FULL_LIVE_CHANNELS;
@@ -103,7 +135,7 @@ export class LiveNewsPanel extends Panel {
   private playerElement: HTMLDivElement | null = null;
   private playerElementId: string;
   private isPlayerReady = false;
-  private currentVideoId: string | null = null;
+  private currentSourceKey: string | null = null;
   private readonly youtubeOrigin: string | null;
   private forceFallbackVideoForNextInit = false;
 
@@ -122,6 +154,7 @@ export class LiveNewsPanel extends Panel {
     this.createLiveButton();
     this.createMuteButton();
     this.createChannelSwitcher();
+    this.updateControlAvailability();
     this.setupBridgeMessageListener();
     this.renderPlayer();
     this.setupIdleDetection();
@@ -175,6 +208,11 @@ export class LiveNewsPanel extends Panel {
         this.syncDesktopEmbedState();
       } else if (msg.type === 'yt-error') {
         const code = Number(msg.code ?? 0);
+        if (!this.isYouTubeChannel(this.activeChannel)) {
+          this.showEmbedError(this.activeChannel, code);
+          return;
+        }
+
         if (code === 153 && this.activeChannel.fallbackVideoId &&
           this.activeChannel.videoId !== this.activeChannel.fallbackVideoId) {
           this.activeChannel.videoId = this.activeChannel.fallbackVideoId;
@@ -238,6 +276,32 @@ export class LiveNewsPanel extends Panel {
     this.boundIdleResetHandler();
   }
 
+  private isYouTubeChannel(channel: LiveChannel = this.activeChannel): channel is YouTubeLiveChannel {
+    return channel.source === 'youtube';
+  }
+
+  private getChannelPlaybackKey(channel: LiveChannel = this.activeChannel): string | null {
+    return this.isYouTubeChannel(channel) ? channel.videoId || null : channel.embedUrl;
+  }
+
+  private updateControlAvailability(): void {
+    const usesHeaderControls = this.isYouTubeChannel();
+
+    if (this.liveBtn) {
+      this.liveBtn.disabled = !usesHeaderControls;
+      this.liveBtn.title = usesHeaderControls
+        ? 'Toggle playback'
+        : 'Playback controls are available inside the live player';
+    }
+
+    if (this.muteBtn) {
+      this.muteBtn.disabled = !usesHeaderControls;
+      this.muteBtn.title = usesHeaderControls
+        ? 'Toggle sound'
+        : 'Sound controls are available inside the live player';
+    }
+  }
+
   private pauseForIdle(): void {
     if (this.isPlaying) {
       this.wasPlayingBeforeIdle = true;
@@ -256,13 +320,13 @@ export class LiveNewsPanel extends Panel {
     this.desktopEmbedIframe = null;
     this.desktopEmbedRenderToken += 1;
     this.isPlayerReady = false;
-    this.currentVideoId = null;
+    this.currentSourceKey = null;
 
     // Clear the container to remove player/iframe
     if (this.playerContainer) {
       this.playerContainer.innerHTML = '';
 
-      if (!this.useDesktopEmbedProxy) {
+      if (this.isYouTubeChannel() && !this.useDesktopEmbedProxy) {
         // Recreate player element for JS API mode
         this.playerElement = document.createElement('div');
         this.playerElement.id = this.playerElementId;
@@ -304,6 +368,7 @@ export class LiveNewsPanel extends Panel {
   }
 
   private togglePlayback(): void {
+    if (!this.isYouTubeChannel()) return;
     this.isPlaying = !this.isPlaying;
     this.wasPlayingBeforeIdle = this.isPlaying;
     this.updateLiveIndicator();
@@ -333,6 +398,7 @@ export class LiveNewsPanel extends Panel {
   }
 
   private toggleMute(): void {
+    if (!this.isYouTubeChannel()) return;
     this.isMuted = !this.isMuted;
     this.updateMuteIcon();
     this.syncPlayerState();
@@ -355,6 +421,11 @@ export class LiveNewsPanel extends Panel {
   }
 
   private async resolveChannelVideo(channel: LiveChannel, forceFallback = false): Promise<void> {
+    if (!this.isYouTubeChannel(channel)) {
+      channel.isLive = true;
+      return;
+    }
+
     const useFallbackVideo = channel.useFallbackOnly || forceFallback;
     const resolved = useFallbackVideo
       ? { videoId: null, isLive: false }
@@ -367,6 +438,12 @@ export class LiveNewsPanel extends Panel {
     if (channel.id === this.activeChannel.id) return;
 
     this.activeChannel = channel;
+    this.updateControlAvailability();
+    if (!this.isYouTubeChannel(channel)) {
+      this.isPlaying = true;
+      this.wasPlayingBeforeIdle = true;
+      this.updateLiveIndicator();
+    }
 
     this.channelSwitcher?.querySelectorAll('.live-channel-btn').forEach(btn => {
       const btnEl = btn as HTMLElement;
@@ -381,13 +458,20 @@ export class LiveNewsPanel extends Panel {
     this.channelSwitcher?.querySelectorAll('.live-channel-btn').forEach(btn => {
       const btnEl = btn as HTMLElement;
       btnEl.classList.remove('loading');
-      if (btnEl.dataset.channelId === channel.id && !channel.videoId) {
+      if (btnEl.dataset.channelId === channel.id && !this.getChannelPlaybackKey(channel)) {
         btnEl.classList.add('offline');
       }
     });
 
-    if (!channel.videoId) {
+    if (!this.getChannelPlaybackKey(channel)) {
       this.showOfflineMessage(channel);
+      return;
+    }
+
+    if (!this.isYouTubeChannel(channel)) {
+      this.destroyPlayer();
+      this.ensurePlayerContainer();
+      this.renderDirectEmbed(channel, true);
       return;
     }
 
@@ -416,15 +500,21 @@ export class LiveNewsPanel extends Panel {
   }
 
   private showEmbedError(channel: LiveChannel, errorCode: number): void {
-    const watchUrl = channel.videoId
-      ? `https://www.youtube.com/watch?v=${encodeURIComponent(channel.videoId)}`
-      : getYouTubeChannelUrl(channel.channelRef);
+    const watchUrl = this.isYouTubeChannel(channel)
+      ? (channel.videoId
+        ? `https://www.youtube.com/watch?v=${encodeURIComponent(channel.videoId)}`
+        : getYouTubeChannelUrl(channel.channelRef))
+      : channel.watchUrl;
+    const embedError = this.isYouTubeChannel(channel)
+      ? ` (YouTube ${errorCode})`
+      : '';
+    const openLabel = this.isYouTubeChannel(channel) ? 'Open on YouTube' : 'Open stream';
 
     this.content.innerHTML = `
       <div class="live-offline">
         <div class="offline-icon">!</div>
-        <div class="offline-text">${channel.name} cannot be embedded in this app (YouTube ${errorCode})</div>
-        <a class="offline-retry" href="${watchUrl}" target="_blank" rel="noopener noreferrer">Open on YouTube</a>
+        <div class="offline-text">${channel.name} cannot be embedded in this app${embedError}</div>
+        <a class="offline-retry" href="${watchUrl}" target="_blank" rel="noopener noreferrer">${openLabel}</a>
       </div>
     `;
   }
@@ -439,7 +529,7 @@ export class LiveNewsPanel extends Panel {
     this.playerContainer = document.createElement('div');
     this.playerContainer.className = 'live-news-player';
 
-    if (!this.useDesktopEmbedProxy) {
+    if (this.isYouTubeChannel() && !this.useDesktopEmbedProxy) {
       this.playerElement = document.createElement('div');
       this.playerElement.id = this.playerElementId;
       this.playerContainer.appendChild(this.playerElement);
@@ -460,7 +550,48 @@ export class LiveNewsPanel extends Panel {
     return `/api/youtube/embed?${params.toString()}`;
   }
 
+  private renderDirectEmbed(channel: EmbedLiveChannel, force = false): void {
+    const embedUrl = channel.embedUrl;
+    if (!embedUrl) {
+      this.showOfflineMessage(channel);
+      return;
+    }
 
+    if (
+      !force &&
+      this.currentSourceKey === embedUrl &&
+      this.playerContainer?.querySelector('iframe')
+    ) {
+      return;
+    }
+
+    if (!this.playerContainer || !this.playerContainer.parentElement) {
+      this.ensurePlayerContainer();
+    }
+
+    if (!this.playerContainer) {
+      return;
+    }
+
+    this.playerContainer.innerHTML = '';
+
+    const iframe = document.createElement('iframe');
+    iframe.className = 'live-news-embed-frame';
+    iframe.src = embedUrl;
+    iframe.title = `${channel.name} live feed`;
+    iframe.style.width = '100%';
+    iframe.style.height = '100%';
+    iframe.style.border = '0';
+    iframe.allow = 'autoplay; encrypted-media; picture-in-picture; fullscreen';
+    iframe.allowFullscreen = true;
+    iframe.referrerPolicy = 'strict-origin-when-cross-origin';
+    iframe.setAttribute('loading', 'eager');
+
+    this.playerContainer.appendChild(iframe);
+    this.desktopEmbedIframe = null;
+    this.currentSourceKey = embedUrl;
+    this.isPlayerReady = true;
+  }
 
   private postToEmbed(msg: Record<string, unknown>): void {
     if (!this.desktopEmbedIframe?.contentWindow) return;
@@ -478,6 +609,11 @@ export class LiveNewsPanel extends Panel {
   }
 
   private async renderDesktopEmbedAsync(force = false): Promise<void> {
+    if (!this.isYouTubeChannel(this.activeChannel)) {
+      this.showOfflineMessage(this.activeChannel);
+      return;
+    }
+
     const videoId = this.activeChannel.videoId;
     if (!videoId) {
       this.showOfflineMessage(this.activeChannel);
@@ -485,13 +621,13 @@ export class LiveNewsPanel extends Panel {
     }
 
     // Only recreate iframe when video ID changes (not for play/mute toggling).
-    if (!force && this.currentVideoId === videoId && this.desktopEmbedIframe) {
+    if (!force && this.currentSourceKey === videoId && this.desktopEmbedIframe) {
       this.syncDesktopEmbedState();
       return;
     }
 
     const renderToken = ++this.desktopEmbedRenderToken;
-    this.currentVideoId = videoId;
+    this.currentSourceKey = videoId;
     this.isPlayerReady = true;
 
     // Always recreate if container was removed from DOM (e.g. showEmbedError replaced content).
@@ -583,9 +719,16 @@ export class LiveNewsPanel extends Panel {
   private async initializePlayer(): Promise<void> {
     if (!this.useDesktopEmbedProxy && this.player) return;
 
-    const useFallbackVideo = this.activeChannel.useFallbackOnly || this.forceFallbackVideoForNextInit;
+    const useFallbackVideo = this.isYouTubeChannel(this.activeChannel)
+      ? this.activeChannel.useFallbackOnly || this.forceFallbackVideoForNextInit
+      : false;
     this.forceFallbackVideoForNextInit = false;
     await this.resolveChannelVideo(this.activeChannel, useFallbackVideo);
+
+    if (!this.isYouTubeChannel(this.activeChannel)) {
+      this.renderDirectEmbed(this.activeChannel, true);
+      return;
+    }
 
     if (!this.activeChannel.videoId) {
       this.showOfflineMessage(this.activeChannel);
@@ -623,13 +766,20 @@ export class LiveNewsPanel extends Panel {
       events: {
         onReady: () => {
           this.isPlayerReady = true;
-          this.currentVideoId = this.activeChannel.videoId || null;
+          this.currentSourceKey = this.isYouTubeChannel(this.activeChannel)
+            ? this.activeChannel.videoId || null
+            : null;
           const iframe = this.player?.getIframe?.();
           if (iframe) iframe.referrerPolicy = 'strict-origin-when-cross-origin';
           this.syncPlayerState();
         },
         onError: (event) => {
           const errorCode = Number(event?.data ?? 0);
+          if (!this.isYouTubeChannel(this.activeChannel)) {
+            this.destroyPlayer();
+            this.showEmbedError(this.activeChannel, errorCode);
+            return;
+          }
 
           // Retry once with known fallback stream.
           if (
@@ -661,9 +811,14 @@ export class LiveNewsPanel extends Panel {
   }
 
   private syncPlayerState(): void {
+    if (!this.isYouTubeChannel(this.activeChannel)) {
+      this.renderDirectEmbed(this.activeChannel, false);
+      return;
+    }
+
     if (this.useDesktopEmbedProxy) {
       const videoId = this.activeChannel.videoId;
-      if (videoId && this.currentVideoId !== videoId) {
+      if (videoId && this.currentSourceKey !== videoId) {
         this.renderDesktopEmbed(true);
       } else {
         this.syncDesktopEmbedState();
@@ -677,9 +832,9 @@ export class LiveNewsPanel extends Panel {
     if (!videoId) return;
 
     // Handle channel switch
-    const isNewVideo = this.currentVideoId !== videoId;
+    const isNewVideo = this.currentSourceKey !== videoId;
     if (isNewVideo) {
-      this.currentVideoId = videoId;
+      this.currentSourceKey = videoId;
       if (!this.playerElement || !document.getElementById(this.playerElementId)) {
         this.ensurePlayerContainer();
         void this.initializePlayer();
@@ -745,6 +900,7 @@ export class LiveNewsPanel extends Panel {
     this.isPlayerReady = false;
     this.playerContainer = null;
     this.playerElement = null;
+    this.currentSourceKey = null;
 
     super.destroy();
   }

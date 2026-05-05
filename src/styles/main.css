@@ -1218,6 +1218,14 @@ canvas,
   color: var(--green);
 }
 
+.live-mute-btn:disabled,
+.live-mute-btn:disabled.unmuted,
+.live-indicator-btn:disabled {
+  color: var(--text-dim);
+  cursor: not-allowed;
+  opacity: 0.45;
+}
+
 .live-indicator-btn {
   background: transparent;
   border: none;
@@ -1236,6 +1244,10 @@ canvas,
 
 .live-indicator-btn:hover {
   opacity: 0.8;
+}
+
+.live-indicator-btn:disabled:hover {
+  opacity: 0.45;
 }
 
 .live-dot {

@@ -106,10 +106,13 @@ import type { PredictionMarket, MarketData, ClusteredEvent } from '@/types';
 
 // Keep intentionally disabled features type-checked without enabling runtime execution.
 const DISABLED_FEATURE_REFERENCES = {
+  INTEL_SOURCES,
+  fetchClimateAnomalies,
   enrichEventsWithExposure,
   GdeltIntelPanel,
   CascadePanel,
   StrategicRiskPanel,
+  ClimateAnomalyPanel,
   MacroSignalsPanel,
   ETFFlowsPanel,
   StablecoinPanel,
@@ -128,6 +131,10 @@ interface DesktopRuntimeInfo {
 }
 
 const CYBER_LAYER_ENABLED = import.meta.env.VITE_ENABLE_CYBER_LAYER === 'true';
+// Desactivado por solicitud: evitar ejecución de AI Insights.
+const ENABLE_AI_INSIGHTS_SECTION = false;
+// Desactivado por solicitud: evitar ejecución de AI Strategic Posture.
+const ENABLE_AI_STRATEGIC_POSTURE_SECTION = false;
 
 export interface CountryBriefSignals {
   protests: number;
@@ -293,6 +300,8 @@ export class App {
     }
 
     const forcedDisabledPanels = [
+      'insights',
+      'strategic-posture',
       'markets',
       'commodities',
       'polymarket',
@@ -2234,12 +2243,14 @@ export class App {
       // });
       // this.panels['strategic-risk'] = strategicRiskPanel;
 
-      const strategicPosturePanel = new StrategicPosturePanel();
-      strategicPosturePanel.setLocationClickHandler((lat, lon) => {
-        console.log('[App] StrategicPosture handler called:', { lat, lon, hasMap: !!this.map });
-        this.map?.setCenter(lat, lon, 4);
-      });
-      this.panels['strategic-posture'] = strategicPosturePanel;
+      if (ENABLE_AI_STRATEGIC_POSTURE_SECTION) {
+        const strategicPosturePanel = new StrategicPosturePanel();
+        strategicPosturePanel.setLocationClickHandler((lat, lon) => {
+          console.log('[App] StrategicPosture handler called:', { lat, lon, hasMap: !!this.map });
+          this.map?.setCenter(lat, lon, 4);
+        });
+        this.panels['strategic-posture'] = strategicPosturePanel;
+      }
 
       // Desactivado por solicitud: panel de eventos de conflicto UCDP.
       // const ucdpEventsPanel = new UcdpEventsPanel();
@@ -2301,8 +2312,10 @@ export class App {
     // this.panels['stablecoins'] = new StablecoinPanel();
 
     // AI Insights Panel (desktop only - hides itself on mobile)
-    const insightsPanel = new InsightsPanel();
-    this.panels['insights'] = insightsPanel;
+    if (ENABLE_AI_INSIGHTS_SECTION) {
+      const insightsPanel = new InsightsPanel();
+      this.panels['insights'] = insightsPanel;
+    }
 
     if (SITE_VARIANT === 'full') {
       this.panels['cuba-brief'] = new CubaBriefPanel();
@@ -3094,7 +3107,8 @@ export class App {
             await this.loadNatural();
             break;
           case 'fires':
-            await this.loadFirmsData();
+            // Desactivado por solicitud: evitar ejecución manual de FIRMS/satellite-fires.
+            // await this.loadFirmsData();
             break;
           case 'weather':
             await this.loadWeatherAlerts();
@@ -3127,8 +3141,10 @@ export class App {
             break;
           case 'ucdpEvents':
           case 'displacement':
-          case 'climate':
             await this.loadIntelligenceSignals();
+            break;
+          case 'climate':
+            // Desactivado por solicitud: evitar ejecución manual de climate.
             break;
         }
       }, this.MANUAL_LAYER_LOAD_TIMEOUT_MS);
@@ -3378,35 +3394,36 @@ export class App {
       }
     });
 
+    // Desactivado por solicitud: ejecución de feed Intel.
     // Intel (uses different source) - full variant only (defense/military news)
-    if (SITE_VARIANT === 'full') {
-      const enabledIntelSources = INTEL_SOURCES.filter(f => !this.disabledSources.has(f.name));
-      const intelPanel = this.newsPanels['intel'];
-      if (enabledIntelSources.length === 0) {
-        delete this.newsByCategory['intel'];
-        if (intelPanel) intelPanel.showError(t('common.allIntelSourcesDisabled'));
-        this.statusPanel?.updateFeed('Intel', { status: 'ok', itemCount: 0 });
-      } else {
-        const intelResult = await Promise.allSettled([fetchCategoryFeeds(enabledIntelSources)]);
-        if (intelResult[0]?.status === 'fulfilled') {
-          const intel = intelResult[0].value;
-          this.renderNewsForCategory('intel', intel);
-          if (intelPanel) {
-            try {
-              const baseline = await updateBaseline('news:intel', intel.length);
-              const deviation = calculateDeviation(intel.length, baseline);
-              intelPanel.setDeviation(deviation.zScore, deviation.percentChange, deviation.level);
-            } catch (e) { console.warn('[Baseline] news:intel write failed:', e); }
-          }
-          this.statusPanel?.updateFeed('Intel', { status: 'ok', itemCount: intel.length });
-          collectedNews.push(...intel);
-          this.flashMapForNews(intel);
-        } else {
-          delete this.newsByCategory['intel'];
-          console.error('[App] Intel feed failed:', intelResult[0]?.reason);
-        }
-      }
-    }
+    // if (SITE_VARIANT === 'full') {
+    //   const enabledIntelSources = INTEL_SOURCES.filter(f => !this.disabledSources.has(f.name));
+    //   const intelPanel = this.newsPanels['intel'];
+    //   if (enabledIntelSources.length === 0) {
+    //     delete this.newsByCategory['intel'];
+    //     if (intelPanel) intelPanel.showError(t('common.allIntelSourcesDisabled'));
+    //     this.statusPanel?.updateFeed('Intel', { status: 'ok', itemCount: 0 });
+    //   } else {
+    //     const intelResult = await Promise.allSettled([fetchCategoryFeeds(enabledIntelSources)]);
+    //     if (intelResult[0]?.status === 'fulfilled') {
+    //       const intel = intelResult[0].value;
+    //       this.renderNewsForCategory('intel', intel);
+    //       if (intelPanel) {
+    //         try {
+    //           const baseline = await updateBaseline('news:intel', intel.length);
+    //           const deviation = calculateDeviation(intel.length, baseline);
+    //           intelPanel.setDeviation(deviation.zScore, deviation.percentChange, deviation.level);
+    //         } catch (e) { console.warn('[Baseline] news:intel write failed:', e); }
+    //       }
+    //       this.statusPanel?.updateFeed('Intel', { status: 'ok', itemCount: intel.length });
+    //       collectedNews.push(...intel);
+    //       this.flashMapForNews(intel);
+    //     } else {
+    //       delete this.newsByCategory['intel'];
+    //       console.error('[App] Intel feed failed:', intelResult[0]?.reason);
+    //     }
+    //   }
+    // }
 
     this.allNews = this.filterNewsByActiveProvince(collectedNews);
     this.initialLoadComplete = true;
@@ -3879,26 +3896,26 @@ export class App {
     //   }
     // })());
 
-    // Fetch climate anomalies (temperature/precipitation deviations)
-    tasks.push(boundedTask('climate', async () => {
-      try {
-        const climateResult = await fetchClimateAnomalies();
-        if (!climateResult.ok) {
-          dataFreshness.recordError('climate', 'Climate anomalies unavailable (retaining prior climate state)');
-          return;
-        }
-        const anomalies = climateResult.anomalies;
-        (this.panels['climate'] as ClimateAnomalyPanel)?.setAnomalies(anomalies);
-        ingestClimateForCII(anomalies);
-        if (this.mapLayers.climate) {
-          this.map?.setClimateAnomalies(anomalies);
-        }
-        if (anomalies.length > 0) dataFreshness.recordUpdate('climate', anomalies.length);
-      } catch (error) {
-        console.error('[Intelligence] Climate anomalies fetch failed:', error);
-        dataFreshness.recordError('climate', String(error));
-      }
-    }).then(() => undefined).catch(() => undefined));
+    // Desactivado por solicitud: ejecución de climate anomalies.
+    // tasks.push(boundedTask('climate', async () => {
+    //   try {
+    //     const climateResult = await fetchClimateAnomalies();
+    //     if (!climateResult.ok) {
+    //       dataFreshness.recordError('climate', 'Climate anomalies unavailable (retaining prior climate state)');
+    //       return;
+    //     }
+    //     const anomalies = climateResult.anomalies;
+    //     (this.panels['climate'] as ClimateAnomalyPanel)?.setAnomalies(anomalies);
+    //     ingestClimateForCII(anomalies);
+    //     if (this.mapLayers.climate) {
+    //       this.map?.setClimateAnomalies(anomalies);
+    //     }
+    //     if (anomalies.length > 0) dataFreshness.recordUpdate('climate', anomalies.length);
+    //   } catch (error) {
+    //     console.error('[Intelligence] Climate anomalies fetch failed:', error);
+    //     dataFreshness.recordError('climate', String(error));
+    //   }
+    // }).then(() => undefined).catch(() => undefined));
 
     await Promise.allSettled(tasks);
 
@@ -4141,10 +4158,14 @@ export class App {
       this.map?.setMilitaryFlights(flights, flightClusters);
       this.map?.setMilitaryVessels(vessels, vesselClusters);
       this.map?.updateMilitaryForEscalation(flights, vessels);
-      // Fetch cached postures for banner (posture panel fetches its own data)
-      this.loadCachedPosturesForBanner();
-      const insightsPanel = this.panels['insights'] as InsightsPanel | undefined;
-      insightsPanel?.setMilitaryFlights(flights);
+      if (ENABLE_AI_STRATEGIC_POSTURE_SECTION) {
+        // Fetch cached postures for banner (posture panel fetches its own data)
+        this.loadCachedPosturesForBanner();
+      }
+      if (ENABLE_AI_INSIGHTS_SECTION) {
+        const insightsPanel = this.panels['insights'] as InsightsPanel | undefined;
+        insightsPanel?.setMilitaryFlights(flights);
+      }
       const hasData = flights.length > 0 || vessels.length > 0;
       this.map?.setLayerReady('military', hasData);
       const militaryCount = flights.length + vessels.length;
@@ -4201,10 +4222,14 @@ export class App {
         }
       }
 
-      // Fetch cached postures for banner (posture panel fetches its own data)
-      this.loadCachedPosturesForBanner();
-      const insightsPanel = this.panels['insights'] as InsightsPanel | undefined;
-      insightsPanel?.setMilitaryFlights(flightData.flights);
+      if (ENABLE_AI_STRATEGIC_POSTURE_SECTION) {
+        // Fetch cached postures for banner (posture panel fetches its own data)
+        this.loadCachedPosturesForBanner();
+      }
+      if (ENABLE_AI_INSIGHTS_SECTION) {
+        const insightsPanel = this.panels['insights'] as InsightsPanel | undefined;
+        insightsPanel?.setMilitaryFlights(flightData.flights);
+      }
 
       const hasData = flightData.flights.length > 0 || vesselData.vessels.length > 0;
       this.map?.setLayerReady('military', hasData);
@@ -4453,7 +4478,7 @@ export class App {
       allowBrowserFallback = false,
     } = options;
 
-    if (refreshInsights && this.latestClusters.length > 0) {
+    if (ENABLE_AI_INSIGHTS_SECTION && refreshInsights && this.latestClusters.length > 0) {
       const insightsPanel = this.panels['insights'] as InsightsPanel | undefined;
       void insightsPanel?.updateInsights(this.latestClusters, { allowBrowserFallback });
     }
