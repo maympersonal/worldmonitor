@@ -43,7 +43,7 @@ export class CIIPanel extends Panel {
   }
 
   private getTrendArrow(trend: CountryScore['trend'], change: number): string {
-    if (trend === 'rising') return `< span class= "trend-up" >↑${change > 0 ? change : ''} </span>`;
+    if (trend === 'rising') return `<span class="trend-up">↑${change > 0 ? change : ''}</span>`;
     if (trend === 'falling') return `<span class="trend-down">↓${Math.abs(change)}</span>`;
     return '<span class="trend-stable">→</span>';
   }
@@ -90,10 +90,6 @@ export class CIIPanel extends Panel {
   }
 
   public async refresh(forceLocal = false): Promise<void> {
-    if (!this.focalPointsReady && !forceLocal) {
-      return;
-    }
-
     if (forceLocal) {
       this.focalPointsReady = true;
       console.log('[CIIPanel] Focal points ready, calculating scores...');
@@ -105,13 +101,16 @@ export class CIIPanel extends Panel {
       const localScores = calculateCII();
       const localWithData = localScores.filter(s => s.score > 0).length;
       this.scores = localScores;
-      console.log(`[CIIPanel] Calculated ${localWithData} countries with focal point intelligence`);
+      console.log(
+        `[CIIPanel] Calculated ${localWithData} countries` +
+        (this.focalPointsReady ? ' with focal point intelligence' : ' with baseline local intelligence'),
+      );
 
       const withData = this.scores.filter(s => s.score > 0);
       this.setCount(withData.length);
 
       if (withData.length === 0) {
-        this.content.innerHTML = '<div class="empty-state">No instability signals detected</div>';
+        this.content.innerHTML = `<div class="empty-state">${t('components.cii.noSignals')}</div>`;
         return;
       }
 

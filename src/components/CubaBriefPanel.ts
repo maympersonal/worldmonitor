@@ -8,6 +8,7 @@ import type { NewsItem } from '@/types';
 export class CubaBriefPanel extends Panel {
   private static readonly BRIEF_CACHE_KEY = 'summary:cuba-brief';
   private static readonly BRIEF_COOLDOWN_MS = 120000;
+  private static readonly MAX_VISIBLE_SOURCES = 8;
 
   private cubaNews: NewsItem[] = [];
   private cubaBrief: string | null = null;
@@ -116,6 +117,25 @@ export class CubaBriefPanel extends Panel {
     this.render();
   }
 
+  private getVisibleSources(): string[] {
+    const sources: string[] = [];
+    const seen = new Set<string>();
+
+    for (const item of this.cubaNews) {
+      const source = item.source.trim();
+      if (!source || seen.has(source)) continue;
+
+      seen.add(source);
+      sources.push(source);
+
+      if (sources.length >= CubaBriefPanel.MAX_VISIBLE_SOURCES) {
+        break;
+      }
+    }
+
+    return sources;
+  }
+
   private render(): void {
     if (this.isHidden) return;
 
@@ -125,9 +145,22 @@ export class CubaBriefPanel extends Panel {
       return;
     }
 
+    const visibleSources = this.getVisibleSources();
+    const sourcesHtml = visibleSources.length > 0
+      ? `
+        <div class="cuba-brief-sources" aria-label="Fuentes activas para el resumen de Cuba">
+          <span class="cuba-brief-sources-label">Fuentes</span>
+          <div class="cuba-brief-source-list">
+            ${visibleSources.map(source => `<span class="cuba-brief-source">${escapeHtml(source)}</span>`).join('')}
+          </div>
+        </div>
+      `
+      : '';
+
     this.setContent(`
       <div class="cuba-brief-panel">
         <p class="cuba-brief-paragraph">${this.cubaBrief ? escapeHtml(this.cubaBrief) : 'Generando resumen de la situacion actual en Cuba...'}</p>
+        ${sourcesHtml}
       </div>
     `);
   }

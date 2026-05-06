@@ -10786,6 +10786,40 @@ a.prediction-link:hover {
   line-height: 1.65;
 }
 
+.cuba-brief-sources {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.cuba-brief-sources-label {
+  color: var(--text-dim);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.cuba-brief-source-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.cuba-brief-source {
+  display: inline-flex;
+  align-items: center;
+  min-height: 24px;
+  padding: 4px 8px;
+  border: 1px solid var(--overlay-medium);
+  border-radius: 999px;
+  background: var(--surface-elevated);
+  color: var(--text);
+  font-size: 11px;
+  line-height: 1;
+}
+
 .focal-point-name {
   font-size: 12px;
   font-weight: 600;

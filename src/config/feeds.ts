@@ -236,6 +236,10 @@ export const SOURCE_TIERS: Record<string, number> = {
   'Trabajadores': 2,
   'Tribuna': 2,
   'PrensaLatina': 2,
+  '14ymedio': 3,
+  'Directorio Cubano': 3,
+  'Cubanet': 3,
+  'CiberCuba': 3,
 };
 
 export function getSourceTier(sourceName: string): number {
@@ -318,6 +322,10 @@ export const SOURCE_TYPES: Record<string, SourceType> = {
   'Trabajadores': 'other',
   'Tribuna': 'other',
   'PrensaLatina': 'mainstream',
+  '14ymedio': 'mainstream',
+  'Directorio Cubano': 'mainstream',
+  'Cubanet': 'mainstream',
+  'CiberCuba': 'mainstream',
 };
 
 export function getSourceType(sourceName: string): SourceType {
@@ -374,6 +382,10 @@ export const SOURCE_PROPAGANDA_RISK: Record<string, SourceRiskProfile> = {
   'Trabajadores': { risk: 'high', stateAffiliated: 'Cuba', note: 'Wire service, strict editorial standards' },
   'Tribuna': { risk: 'high', stateAffiliated: 'Cuba', note: 'Wire service, strict editorial standards' },
   'PrensaLatina': { risk: 'high', stateAffiliated: 'Cuba', note: 'Wire service, strict editorial standards' },
+  '14ymedio': { risk: 'low', note: 'Independent Cuban outlet focused on domestic reporting' },
+  'Directorio Cubano': { risk: 'medium', note: 'Cuban diaspora service outlet with practical news coverage' },
+  'Cubanet': { risk: 'medium', note: 'Independent Cuba-focused outlet with diaspora editorial perspective' },
+  'CiberCuba': { risk: 'medium', note: 'Digital Cuba-focused outlet with diaspora editorial perspective' },
 };
 
 export function getSourcePropagandaRisk(sourceName: string): SourceRiskProfile {
@@ -1062,6 +1074,22 @@ const FULL_FEEDS: Record<string, Feed[]> = {
       name: 'PrensaLatina',
       url: googleNewsRss('(site:prensalatina.cu+OR+site:prensa-latina.cu+OR+"Prensa+Latina")+when:7d', 'es-419', 'US', 'US:es-419'),
       fallbackUrls: [railwayRss('https://www.prensalatina.cu/feed')],
+    },
+    {
+      name: '14ymedio',
+      url: googleNewsRss('(site:14ymedio.com+OR+"14ymedio")+when:7d', 'es-419', 'US', 'US:es-419'),
+    },
+    {
+      name: 'Directorio Cubano',
+      url: googleNewsRss('(site:directoriocubano.info+OR+"Directorio+Cubano")+when:7d', 'es-419', 'US', 'US:es-419'),
+    },
+    {
+      name: 'Cubanet',
+      url: googleNewsRss('(site:cubanet.org+OR+"Cubanet"+OR+"CubaNet")+when:7d', 'es-419', 'US', 'US:es-419'),
+    },
+    {
+      name: 'CiberCuba',
+      url: googleNewsRss('(site:cibercuba.com+OR+"CiberCuba")+when:7d', 'es-419', 'US', 'US:es-419'),
     },
   ],
   ...CUBA_PROVINCIAL_FEEDS,
