@@ -1,0 +1,26 @@
+[Unit]
+Description=World Monitor
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=root
+Group=root
+WorkingDirectory=/root/worldmonitor
+
+# Expose dashboard on LAN from the container
+Environment=HOST=0.0.0.0
+Environment=PORT=3000
+Environment=VITE_VARIANT=full
+
+# Use npm from PATH; if Node is managed by nvm, load nvm first.
+ExecStart=/bin/bash -lc 'set -e; cd /root/worldmonitor; if [ -s /root/.nvm/nvm.sh ]; then . /root/.nvm/nvm.sh; fi; npm run dev:local'
+
+Restart=always
+RestartSec=5
+TimeoutStopSec=30
+KillSignal=SIGINT
+
+[Install]
+WantedBy=multi-user.target
