@@ -364,7 +364,7 @@
   },
   "components": {
     "monitor": {
-      "placeholder": "Keywords (comma separated)",
+      "placeholder": "Name: keywords (comma separated)",
       "add": "+ Add Monitor",
       "addKeywords": "Add keywords to monitor news",
       "noMatches": "No matches in {{count}} articles",

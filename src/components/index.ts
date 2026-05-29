@@ -8,6 +8,7 @@ export * from './NewsPanel';
 export * from './MarketPanel';
 export * from './PredictionPanel';
 export * from './MonitorPanel';
+export * from './MonitorResultsPanel';
 export * from './SignalModal';
 export * from './PlaybackControl';
 export * from './StatusPanel';

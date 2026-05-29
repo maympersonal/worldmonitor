@@ -364,13 +364,13 @@
   },
   "components": {
     "monitor": {
-      "placeholder": "Palabras clave (separadas por comas)",
+      "placeholder": "Nombre: palabras clave (separadas por comas)",
       "add": "+ Agregar monitor",
       "addKeywords": "Agregue palabras clave para monitorear las noticias",
       "noMatches": "No hay coincidencias en {{count}} artículos",
       "showingMatches": "Mostrando {{count}} de {{total}} coincidencias",
-      "match": "fósforo",
-      "matches": "partidos"
+      "match": "coincidencia",
+      "matches": "coincidencias"
     },
     "regulation": {
       "timeline": "Línea de tiempo",

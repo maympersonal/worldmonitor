@@ -49,6 +49,7 @@ import {
   CryptoPanel,
   PredictionPanel,
   MonitorPanel,
+  MonitorResultsPanel,
   Panel,
   SignalModal,
   PlaybackControl,
@@ -154,6 +155,7 @@ export class App {
   private map: MapContainer | null = null;
   private panels: Record<string, Panel> = {};
   private newsPanels: Record<string, NewsPanel> = {};
+  private monitorPanels: Record<string, MonitorResultsPanel> = {};
   private allNews: NewsItem[] = [];
   private newsByCategory: Record<string, NewsItem[]> = {};
   private currentTimeRange: TimeRange = '7d';
@@ -2049,8 +2051,10 @@ export class App {
     monitorPanel.onChanged((monitors) => {
       this.monitors = monitors;
       saveToStorage(STORAGE_KEYS.monitors, monitors);
+      this.syncMonitorPanels();
       this.updateMonitorResults();
     });
+    this.syncMonitorPanels(false);
 
     // Mercado desactivado temporalmente:
     // const commoditiesPanel = new CommoditiesPanel();
@@ -2323,7 +2327,13 @@ export class App {
 
     // Add panels to grid in saved order
     // Use DEFAULT_PANELS keys for variant-aware panel order
-    const defaultOrder = Object.keys(DEFAULT_PANELS).filter(k => k !== 'map');
+    const monitorPanelKeys = this.monitors
+      .map((monitor) => MonitorResultsPanel.getPanelId(monitor))
+      .filter((key) => !!this.panels[key]);
+    const defaultOrder = [
+      ...Object.keys(DEFAULT_PANELS).filter(k => k !== 'map'),
+      ...monitorPanelKeys,
+    ];
     const savedOrder = this.getSavedPanelOrder();
     // Merge saved order with default to include new panels
     let panelOrder = defaultOrder;
@@ -2439,12 +2449,91 @@ export class App {
     localStorage.setItem(this.PANEL_ORDER_KEY, JSON.stringify(order));
   }
 
+  private removePanelsFromSavedOrder(panelKeys: Set<string>): void {
+    if (panelKeys.size === 0) return;
+
+    const savedOrder = this.getSavedPanelOrder();
+    if (savedOrder.length === 0) return;
+
+    const nextOrder = savedOrder.filter((key) => !panelKeys.has(key));
+    if (nextOrder.length !== savedOrder.length) {
+      localStorage.setItem(this.PANEL_ORDER_KEY, JSON.stringify(nextOrder));
+    }
+  }
+
   private attachRelatedAssetHandlers(panel: NewsPanel): void {
     panel.setRelatedAssetHandlers({
       onRelatedAssetClick: (asset) => this.handleRelatedAssetClick(asset),
       onRelatedAssetsFocus: (assets) => this.map?.highlightAssets(assets),
       onRelatedAssetsClear: () => this.map?.highlightAssets(null),
     });
+  }
+
+  private syncMonitorPanels(mountNewPanels = true): void {
+    const activeKeys = new Set(
+      this.monitors.map((monitor) => MonitorResultsPanel.getPanelId(monitor))
+    );
+    const removedKeys = new Set<string>();
+
+    Object.entries(this.monitorPanels).forEach(([key, panel]) => {
+      if (activeKeys.has(key)) return;
+
+      panel.destroy();
+      panel.getElement().remove();
+      delete this.monitorPanels[key];
+      delete this.panels[key];
+      removedKeys.add(key);
+    });
+
+    Object.keys(this.panelSettings).forEach((key) => {
+      if (key.startsWith('monitor-result-') && !activeKeys.has(key)) {
+        delete this.panelSettings[key];
+        removedKeys.add(key);
+      }
+    });
+
+    removedKeys.forEach((key) => {
+      const panel = this.panels[key];
+      panel?.destroy();
+      panel?.getElement().remove();
+      delete this.panels[key];
+      delete this.monitorPanels[key];
+
+      document.querySelectorAll<HTMLElement>('.panel[data-panel]').forEach((el) => {
+        if (el.dataset.panel === key) el.remove();
+      });
+    });
+    this.removePanelsFromSavedOrder(removedKeys);
+
+    const panelsGrid = document.getElementById('panelsGrid');
+    this.monitors.forEach((monitor) => {
+      const key = MonitorResultsPanel.getPanelId(monitor);
+      const name = MonitorResultsPanel.getTitle(monitor);
+      const config = this.panelSettings[key];
+
+      this.panelSettings[key] = config
+        ? { ...config, name }
+        : { name, enabled: true, priority: 2 };
+
+      if (this.monitorPanels[key]) return;
+
+      const panel = new MonitorResultsPanel(monitor);
+      this.monitorPanels[key] = panel;
+      this.panels[key] = panel;
+
+      if (mountNewPanels && panelsGrid) {
+        this.makeDraggable(panel.getElement(), key);
+        panelsGrid.appendChild(panel.getElement());
+      }
+    });
+
+    saveToStorage(STORAGE_KEYS.panels, this.panelSettings);
+
+    if (mountNewPanels) {
+      this.applyPanelSettings();
+      this.renderPanelToggles();
+      this.savePanelOrder();
+    }
   }
 
   private handleRelatedAssetClick(asset: RelatedAsset): void {
@@ -2831,7 +2920,7 @@ export class App {
         ([key, panel]) => `
         <div class="panel-toggle-item ${panel.enabled ? 'active' : ''}" data-panel="${key}">
           <div class="panel-toggle-checkbox">${panel.enabled ? '✓' : ''}</div>
-          <span class="panel-toggle-label">${this.getLocalizedPanelName(key, panel.name)}</span>
+          <span class="panel-toggle-label">${escapeHtml(this.getLocalizedPanelName(key, panel.name))}</span>
         </div>
       `
       )
@@ -4334,8 +4423,9 @@ export class App {
   }
 
   private updateMonitorResults(): void {
-    const monitorPanel = this.panels['monitors'] as MonitorPanel;
-    monitorPanel.renderResults(this.allNews);
+    Object.values(this.monitorPanels).forEach((panel) => {
+      panel.renderResults(this.allNews);
+    });
   }
 
   private async runCorrelationAnalysis(): Promise<void> {
