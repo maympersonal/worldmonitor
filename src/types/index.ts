@@ -4,6 +4,7 @@ export interface Feed {
   name: string;
   url: string;
   fallbackUrls?: string[];
+  limit?: number;
   type?: string;
   region?: string;
   propagandaRisk?: PropagandaRisk;
@@ -15,6 +16,7 @@ export type { ThreatClassification, ThreatLevel, EventCategory } from '@/service
 
 export interface NewsItem {
   source: string;
+  sourceUrl?: string;
   title: string;
   link: string;
   pubDate: Date;
@@ -504,6 +506,7 @@ export interface Monitor {
   keywords: string[];
   color: string;
   name?: string;
+  query?: string;
   lat?: number;
   lon?: number;
 }

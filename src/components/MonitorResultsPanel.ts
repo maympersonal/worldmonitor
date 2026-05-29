@@ -3,23 +3,19 @@ import { t } from '@/services/i18n';
 import type { Monitor, NewsItem } from '@/types';
 import { formatTime } from '@/utils';
 import { escapeHtml, sanitizeUrl } from '@/utils/sanitize';
+import {
+  compileMonitorQuery,
+  getMonitorDisplayRule,
+  getMonitorRuleText,
+  matchesCompiledMonitorQuery,
+  type CompiledMonitorQuery,
+} from '@/services/monitor-query';
 
 const MAX_VISIBLE_RESULTS = 10;
 
-function normalizeSearchText(value: string): string {
-  return value
-    .toLocaleLowerCase()
-    .normalize('NFD')
-    .replace(/\p{M}/gu, '');
-}
-
-function escapeRegExp(value: string): string {
-  return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-}
-
 export class MonitorResultsPanel extends Panel {
   private readonly monitor: Monitor;
-  private readonly keywords: string[];
+  private readonly query: CompiledMonitorQuery;
 
   constructor(monitor: Monitor) {
     super({
@@ -30,9 +26,7 @@ export class MonitorResultsPanel extends Panel {
     });
 
     this.monitor = monitor;
-    this.keywords = monitor.keywords
-      .map((keyword) => normalizeSearchText(keyword.trim()))
-      .filter(Boolean);
+    this.query = compileMonitorQuery(getMonitorRuleText(monitor));
   }
 
   public static getPanelId(monitor: Monitor): string {
@@ -40,22 +34,18 @@ export class MonitorResultsPanel extends Panel {
   }
 
   public static getTitle(monitor: Monitor): string {
-    return monitor.name?.trim() || monitor.keywords.filter(Boolean).join(', ') || 'Monitor';
+    return monitor.name?.trim() || getMonitorDisplayRule(monitor) || 'Monitor';
   }
 
   private matches(item: NewsItem): boolean {
-    const searchText = normalizeSearchText(`${item.title} ${item.snippet || ''}`);
-
-    return this.keywords.some((keyword) => {
-      const escaped = escapeRegExp(keyword);
-      const expression = new RegExp(`(^|[^\\p{L}\\p{N}])${escaped}(?=$|[^\\p{L}\\p{N}])`, 'iu');
-      return expression.test(searchText);
-    });
+    return matchesCompiledMonitorQuery(this.query, item);
   }
 
-  public renderResults(news: NewsItem[]): void {
-    const matchedItems = news
-      .filter((item) => this.matches(item))
+  public renderResults(news: NewsItem[], remoteMatches: NewsItem[] = []): void {
+    const matchedItems = [
+      ...remoteMatches,
+      ...news.filter((item) => this.matches(item)),
+    ]
       .filter((item, index, items) =>
         items.findIndex((candidate) => candidate.link === item.link) === index
       );
@@ -64,7 +54,7 @@ export class MonitorResultsPanel extends Panel {
 
     if (matchedItems.length === 0) {
       this.setContent(
-        `<div style="color: var(--text-dim); font-size: 10px; margin-top: 12px;">${t('components.monitor.noMatches', { count: String(news.length) })}</div>`
+        `<div style="color: var(--text-dim); font-size: 10px; margin-top: 12px;">${t('components.monitor.noMatches', { count: String(news.length + remoteMatches.length) })}</div>`
       );
       return;
     }

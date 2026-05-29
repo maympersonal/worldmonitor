@@ -364,7 +364,7 @@
   },
   "components": {
     "monitor": {
-      "placeholder": "Name: keywords (comma separated)",
+      "placeholder": "Name: Cuba economy OR Havana -baseball",
       "add": "+ Add Monitor",
       "addKeywords": "Add keywords to monitor news",
       "noMatches": "No matches in {{count}} articles",

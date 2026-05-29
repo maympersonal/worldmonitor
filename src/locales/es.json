@@ -364,7 +364,7 @@
   },
   "components": {
     "monitor": {
-      "placeholder": "Nombre: palabras clave (separadas por comas)",
+      "placeholder": "Nombre: Cuba economia OR Habana -beisbol",
       "add": "+ Agregar monitor",
       "addKeywords": "Agregue palabras clave para monitorear las noticias",
       "noMatches": "No hay coincidencias en {{count}} artículos",

@@ -4,9 +4,11 @@ import type { Monitor } from '@/types';
 import { MONITOR_COLORS } from '@/config';
 import { generateId, getCSSColor } from '@/utils';
 import { escapeHtml } from '@/utils/sanitize';
+import { extractMonitorKeywords, getMonitorDisplayRule, isMonitorQueryField } from '@/services/monitor-query';
 
 interface ParsedMonitorInput {
   name?: string;
+  query: string;
   keywords: string[];
 }
 
@@ -49,26 +51,36 @@ export class MonitorPanel extends Panel {
 
   private parseMonitorInput(value: string): ParsedMonitorInput {
     const trimmed = value.trim();
-    const separatorIndex = trimmed.indexOf(':');
+    const separatorIndex = this.findNameSeparator(trimmed);
     const hasSeparator = separatorIndex !== -1;
     const rawName = hasSeparator ? trimmed.slice(0, separatorIndex).trim() : '';
     const name = rawName || undefined;
     const ruleText = hasSeparator ? trimmed.slice(separatorIndex + 1).trim() : trimmed;
-    const keywords = Array.from(new Set(
-      ruleText
-        .split(',')
-        .map((keyword) => keyword.trim().toLowerCase())
-        .filter(Boolean)
-    ));
+    const keywords = extractMonitorKeywords(ruleText);
 
     return {
       ...(name && { name }),
-      keywords,
+      query: ruleText,
+      keywords: keywords.length > 0 ? keywords : [ruleText.toLocaleLowerCase()].filter(Boolean),
     };
   }
 
+  private findNameSeparator(value: string): number {
+    const separatorMatch = value.match(/:\s+/);
+    if (!separatorMatch || separatorMatch.index === undefined) return -1;
+
+    const prefix = value.slice(0, separatorMatch.index).trim();
+    if (!prefix) return -1;
+
+    const prefixTokens = prefix.split(/\s+/);
+    const lastPrefixToken = prefixTokens[prefixTokens.length - 1] ?? '';
+    if (isMonitorQueryField(lastPrefixToken)) return -1;
+
+    return separatorMatch.index;
+  }
+
   private getMonitorLabel(monitor: Monitor): string {
-    const rule = monitor.keywords.join(', ');
+    const rule = getMonitorDisplayRule(monitor);
     return monitor.name ? `${monitor.name}: ${rule}` : rule;
   }
 
@@ -78,13 +90,14 @@ export class MonitorPanel extends Panel {
 
     const parsed = this.parseMonitorInput(input.value);
 
-    if (parsed.keywords.length === 0) return;
+    if (!parsed.query) return;
 
     const monitor: Monitor = {
       id: generateId(),
       keywords: parsed.keywords,
       color: MONITOR_COLORS[this.monitors.length % MONITOR_COLORS.length] ?? getCSSColor('--status-live'),
       ...(parsed.name && { name: parsed.name }),
+      query: parsed.query,
     };
 
     this.monitors.push(monitor);

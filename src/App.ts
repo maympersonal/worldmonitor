@@ -12,7 +12,7 @@ import {
   STORAGE_KEYS,
   SITE_VARIANT,
 } from '@/config';
-import { fetchCategoryFeeds, fetchMultipleStocks, fetchCrypto, fetchPredictions, fetchEarthquakes, fetchWeatherAlerts, fetchFredData, fetchInternetOutages, isOutagesConfigured, fetchAisSignals, initAisStream, getAisStatus, disconnectAisStream, isAisConfigured, fetchCableActivity, fetchProtestEvents, getProtestStatus, fetchFlightDelays, fetchMilitaryFlights, fetchMilitaryVessels, initMilitaryVesselStream, isMilitaryVesselTrackingConfigured, initDB, updateBaseline, calculateDeviation, addToSignalHistory, saveSnapshot, cleanOldSnapshots, analysisWorker, fetchPizzIntStatus, fetchGdeltTensions, fetchNaturalEvents, fetchRecentAwards, fetchOilAnalytics, fetchCyberThreats, drainTrendingSignals } from '@/services';
+import { fetchCategoryFeeds, fetchMultipleStocks, fetchCrypto, fetchPredictions, fetchEarthquakes, fetchWeatherAlerts, fetchFredData, fetchInternetOutages, isOutagesConfigured, fetchAisSignals, initAisStream, getAisStatus, disconnectAisStream, isAisConfigured, fetchCableActivity, fetchProtestEvents, getProtestStatus, fetchFlightDelays, fetchMilitaryFlights, fetchMilitaryVessels, initMilitaryVesselStream, isMilitaryVesselTrackingConfigured, initDB, updateBaseline, calculateDeviation, addToSignalHistory, saveSnapshot, cleanOldSnapshots, analysisWorker, fetchPizzIntStatus, fetchGdeltTensions, fetchNaturalEvents, fetchRecentAwards, fetchOilAnalytics, fetchCyberThreats, drainTrendingSignals, fetchMonitorGoogleNews } from '@/services';
 import { fetchCountryMarkets } from '@/services/polymarket';
 import { mlWorker } from '@/services/ml-worker';
 import { clusterNewsHybrid } from '@/services/clustering';
@@ -156,6 +156,8 @@ export class App {
   private panels: Record<string, Panel> = {};
   private newsPanels: Record<string, NewsPanel> = {};
   private monitorPanels: Record<string, MonitorResultsPanel> = {};
+  private monitorGoogleNews: Record<string, NewsItem[]> = {};
+  private monitorGoogleNewsInFlight: Record<string, string> = {};
   private allNews: NewsItem[] = [];
   private newsByCategory: Record<string, NewsItem[]> = {};
   private currentTimeRange: TimeRange = '7d';
@@ -2498,6 +2500,8 @@ export class App {
       panel?.getElement().remove();
       delete this.panels[key];
       delete this.monitorPanels[key];
+      delete this.monitorGoogleNews[key];
+      delete this.monitorGoogleNewsInFlight[key];
 
       document.querySelectorAll<HTMLElement>('.panel[data-panel]').forEach((el) => {
         if (el.dataset.panel === key) el.remove();
@@ -4423,9 +4427,38 @@ export class App {
   }
 
   private updateMonitorResults(): void {
-    Object.values(this.monitorPanels).forEach((panel) => {
-      panel.renderResults(this.allNews);
+    this.monitors.forEach((monitor) => {
+      const key = MonitorResultsPanel.getPanelId(monitor);
+      const panel = this.monitorPanels[key];
+      if (!panel) return;
+
+      panel.renderResults(this.allNews, this.monitorGoogleNews[key] || []);
+      this.refreshMonitorGoogleNews(monitor);
     });
+  }
+
+  private refreshMonitorGoogleNews(monitor: Monitor): void {
+    const key = MonitorResultsPanel.getPanelId(monitor);
+    const signature = monitor.query || monitor.keywords.join('|');
+    if (this.monitorGoogleNewsInFlight[key] === signature) return;
+
+    this.monitorGoogleNewsInFlight[key] = signature;
+    fetchMonitorGoogleNews(monitor)
+      .then((items) => {
+        if (this.monitorGoogleNewsInFlight[key] !== signature) return;
+        if (!this.monitorPanels[key]) return;
+
+        this.monitorGoogleNews[key] = items;
+        this.monitorPanels[key]?.renderResults(this.allNews, items);
+      })
+      .catch((error) => {
+        console.warn(`[Monitor] Google News search failed for ${key}:`, error);
+      })
+      .finally(() => {
+        if (this.monitorGoogleNewsInFlight[key] === signature) {
+          delete this.monitorGoogleNewsInFlight[key];
+        }
+      });
   }
 
   private async runCorrelationAnalysis(): Promise<void> {

@@ -532,6 +532,9 @@ export async function fetchFeed(feed: Feed): Promise<NewsItem[]> {
         const parsedCandidates = Array.from(items)
           .map((item) => {
             const title = item.querySelector('title')?.textContent || '';
+            const sourceEl = item.querySelector('source');
+            const sourceName = compactText(sourceEl?.textContent || '') || feed.name;
+            const sourceUrl = sourceEl?.getAttribute('url') || undefined;
             let link = '';
             if (isAtom) {
               const linkEl = item.querySelector('link[href]');
@@ -555,7 +558,8 @@ export async function fetchFeed(feed: Feed): Promise<NewsItem[]> {
 
             return {
               item: {
-                source: feed.name,
+                source: sourceName,
+                ...(sourceUrl && { sourceUrl }),
                 title,
                 link,
                 pubDate,
@@ -582,7 +586,7 @@ export async function fetchFeed(feed: Feed): Promise<NewsItem[]> {
         }
 
         const parsed = effectiveCandidates
-          .slice(0, 5)
+          .slice(0, feed.limit ?? 5)
           .map(({ item }) => item);
 
         if (hasScopedCubaFilter && filteredCandidates.length < parsedCandidates.length) {
