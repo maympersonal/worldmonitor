@@ -1,6 +1,55 @@
 #!/usr/bin/env node
 import { spawn } from 'node:child_process';
+import fs from 'node:fs';
 import net from 'node:net';
+import path from 'node:path';
+
+const ENV_LOCAL_FILE = '.env.local';
+
+function parseDotenvLine(line) {
+  const trimmed = line.trim();
+  if (!trimmed || trimmed.startsWith('#')) return null;
+
+  const equalsIndex = trimmed.indexOf('=');
+  if (equalsIndex === -1) return null;
+
+  const key = trimmed.slice(0, equalsIndex).trim();
+  if (!/^[A-Za-z_][A-Za-z0-9_]*$/.test(key)) return null;
+
+  let value = trimmed.slice(equalsIndex + 1).trim();
+  const quote = value[0];
+  if ((quote === '"' || quote === "'") && value.endsWith(quote)) {
+    value = value.slice(1, -1);
+  } else {
+    const commentIndex = value.search(/\s#/);
+    if (commentIndex !== -1) value = value.slice(0, commentIndex).trim();
+  }
+
+  return [key, value];
+}
+
+function loadEnvLocal() {
+  const envPath = path.resolve(process.cwd(), ENV_LOCAL_FILE);
+  if (!fs.existsSync(envPath)) return;
+
+  const contents = fs.readFileSync(envPath, 'utf8');
+  let loaded = 0;
+  for (const line of contents.split(/\r?\n/)) {
+    const parsed = parseDotenvLine(line);
+    if (!parsed) continue;
+    const [key, value] = parsed;
+    if (process.env[key] == null) {
+      process.env[key] = value;
+      loaded += 1;
+    }
+  }
+
+  if (loaded > 0) {
+    console.log(`[dev-local] Loaded ${loaded} value(s) from ${ENV_LOCAL_FILE}`);
+  }
+}
+
+loadEnvLocal();
 
 const args = process.argv.slice(2);
 

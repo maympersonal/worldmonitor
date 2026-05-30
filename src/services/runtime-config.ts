@@ -2,6 +2,7 @@ import { isDesktopRuntime } from './runtime';
 import { invokeTauri } from './tauri-bridge';
 
 export type RuntimeSecretKey =
+  | 'HF_TOKEN'
   | 'DASHSCOPE_API_KEY'
   | 'FRED_API_KEY'
   | 'EIA_API_KEY'
@@ -21,6 +22,7 @@ export type RuntimeSecretKey =
   | 'UC_DP_KEY';
 
 export type RuntimeFeatureId =
+  | 'aiHuggingFace'
   | 'aiAlibabaQwen'
   | 'economicFred'
   | 'energyEia'
@@ -59,6 +61,7 @@ const SIDECAR_ENV_UPDATE_URL = 'http://127.0.0.1:46123/api/local-env-update';
 const SIDECAR_SECRET_VALIDATE_URL = 'http://127.0.0.1:46123/api/local-validate-secret';
 
 const defaultToggles: Record<RuntimeFeatureId, boolean> = {
+  aiHuggingFace: true,
   aiAlibabaQwen: true,
   economicFred: true,
   energyEia: true,
@@ -76,9 +79,16 @@ const defaultToggles: Record<RuntimeFeatureId, boolean> = {
 
 export const RUNTIME_FEATURES: RuntimeFeatureDefinition[] = [
   {
+    id: 'aiHuggingFace',
+    name: 'Hugging Face AI summaries',
+    description: 'Primary OpenAI-compatible Hugging Face provider for summaries, country briefs, and AI headline classification.',
+    requiredSecrets: ['HF_TOKEN'],
+    fallback: 'Falls back to Alibaba DashScope or the local browser model where supported.',
+  },
+  {
     id: 'aiAlibabaQwen',
-    name: 'Alibaba Qwen summarization',
-    description: 'Unified LLM provider used for summaries, country briefs, and AI headline classification.',
+    name: 'Alibaba Qwen fallback',
+    description: 'Fallback LLM provider used when Hugging Face is not configured.',
     requiredSecrets: ['DASHSCOPE_API_KEY'],
     fallback: 'Falls back to the local browser model where supported.',
   },

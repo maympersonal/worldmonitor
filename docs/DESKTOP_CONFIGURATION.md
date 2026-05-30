@@ -4,8 +4,9 @@ World Monitor desktop now uses a runtime configuration schema with per-feature t
 
 ## Secret keys
 
-The desktop vault schema supports the following 17 keys used by services and relays:
+The desktop vault schema supports the following 18 keys used by services and relays:
 
+- `HF_TOKEN`
 - `DASHSCOPE_API_KEY`
 - `FRED_API_KEY`
 - `EIA_API_KEY`
@@ -44,7 +45,7 @@ Secrets are **not stored in plaintext files** by the frontend.
 
 If required secrets are missing/disabled:
 
-- Summarization: Alibaba Qwen disabled, browser model fallback.
+- Summarization: Hugging Face disabled, Alibaba Qwen fallback if configured, then browser model fallback.
 - FRED / EIA / Finnhub: economic, oil analytics, and stock data return empty state.
 - Cloudflare / ACLED: outages/conflicts return empty state.
 - Cyber threat feeds (URLhaus, OTX, AbuseIPDB): cyber threat layer returns empty state.

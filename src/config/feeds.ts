@@ -1056,7 +1056,7 @@ const FULL_FEEDS: Record<string, Feed[]> = {
       fallbackUrls: [railwayRss('https://www.granma.cu/feed')],
     },
     {
-      name: 'JuventudRevelde',
+      name: 'JuventudRebelde',
       url: googleNewsRss('(site:juventudrebelde.cu+OR+"Juventud+Rebelde")+when:7d', 'es-419', 'US', 'US:es-419'),
       fallbackUrls: [rss('https://www.juventudrebelde.cu/get/rss/grupo/generales')],
     },

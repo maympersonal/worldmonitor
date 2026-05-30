@@ -17,7 +17,7 @@
     "predictionMarkets": "Prediction Markets",
     "loadingMarkets": "Loading prediction markets...",
     "infrastructure": "Infrastructure Exposure",
-    "briefUnavailable": "AI brief unavailable — configure DASHSCOPE_API_KEY in Settings.",
+    "briefUnavailable": "AI brief unavailable — configure HF_TOKEN in Settings.",
     "cached": "Cached",
     "fresh": "Fresh",
     "noMarkets": "No prediction markets found",
@@ -265,6 +265,7 @@
         "staged": "Staged (save with OK)"
       },
       "help": {
+        "HF_TOKEN": "Used for Hugging Face Inference Providers and AI summaries.",
         "URLHAUS_AUTH_KEY": "Used for both URLhaus and ThreatFox APIs.",
         "OTX_API_KEY": "Optional enrichment source for the cyber threat layer.",
         "ABUSEIPDB_API_KEY": "Optional enrichment source for malicious IP reputation.",
@@ -310,7 +311,7 @@
       "fresh": "Fresh",
       "noMarkets": "No prediction markets found",
       "predictionMarkets": "Prediction Markets",
-      "unavailable": "AI brief unavailable — configure DASHSCOPE_API_KEY in Settings."
+      "unavailable": "AI brief unavailable — configure HF_TOKEN in Settings."
     },
     "countryBrief": {
       "identifying": "Identifying country...",
@@ -326,7 +327,7 @@
       "predictionMarkets": "Prediction Markets",
       "loadingMarkets": "Loading prediction markets...",
       "infrastructure": "Infrastructure Exposure",
-      "briefUnavailable": "AI brief unavailable — configure DASHSCOPE_API_KEY in Settings.",
+      "briefUnavailable": "AI brief unavailable — configure HF_TOKEN in Settings.",
       "cached": "Cached",
       "fresh": "Fresh",
       "noMarkets": "No prediction markets found",
@@ -694,7 +695,7 @@
     },
     "insights": {
       "noStories": "No breaking or multi-source stories yet",
-      "infoTooltip": "<strong>AI-Powered Analysis</strong><br>• <strong>World Brief</strong>: AI summary (Alibaba Qwen)<br>• <strong>Sentiment</strong>: News tone analysis<br>• <strong>Velocity</strong>: Fast-moving stories<br>• <strong>Focal Points</strong>: Correlates news entities with map signals (military, protests, outages)<br><em>Desktop only • Powered by Qwen 2.5 + Focal Point Detection</em>"
+      "infoTooltip": "<strong>AI-Powered Analysis</strong><br>• <strong>World Brief</strong>: AI summary (Hugging Face/Qwen)<br>• <strong>Sentiment</strong>: News tone analysis<br>• <strong>Velocity</strong>: Fast-moving stories<br>• <strong>Focal Points</strong>: Correlates news entities with map signals (military, protests, outages)<br><em>Desktop only • Powered by Qwen + Focal Point Detection</em>"
     },
     "cascade": {
       "noImpacts": "No country impacts detected",

@@ -4,8 +4,12 @@ node_modules/
 dist/
 .DS_Store
 *.log
+
+# Local environment files with secrets.
 .env
+.env.example
 .env.local
+.env.*.local
 .playwright-mcp/
 .vercel
 .claude/

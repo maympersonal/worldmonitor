@@ -8,11 +8,17 @@ export const config = {
 const DASHSCOPE_API_URL =
   String(process.env.DASHSCOPE_API_URL || '').trim()
   || 'https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions';
-const MODEL = 'qwen2.5-1.5b-instruct';
+const HUGGINGFACE_API_URL =
+  String(process.env.HF_API_URL || process.env.HUGGINGFACE_API_URL || '').trim()
+  || 'https://router.huggingface.co/v1/chat/completions';
+const HUGGINGFACE_MODEL =
+  String(process.env.HF_MODEL || process.env.HUGGINGFACE_MODEL || '').trim()
+  || 'Qwen/Qwen2.5-7B-Instruct';
+const DASHSCOPE_MODEL = 'qwen2.5-1.5b-instruct';
 const SUMMARY_CACHE_TTL_SECONDS = 86400;
 const COUNTRY_CACHE_TTL_SECONDS = 7200;
 const CLASSIFY_CACHE_TTL_SECONDS = 86400;
-const SUMMARY_CACHE_VERSION = 'v4';
+const SUMMARY_CACHE_VERSION = 'v5';
 const COUNTRY_CACHE_VERSION = 'ci-v3';
 const CLASSIFY_CACHE_VERSION = 'v2';
 const MAX_BATCH_SIZE = 20;
@@ -35,8 +41,43 @@ function json(body, status = 200, corsHeaders = {}, extraHeaders = {}) {
   });
 }
 
-function getApiKey() {
+function getDashScopeApiKey() {
   return String(process.env.DASHSCOPE_API_KEY || '').trim();
+}
+
+function getHuggingFaceApiKey() {
+  return String(
+    process.env.HF_TOKEN
+    || process.env.HUGGINGFACE_API_KEY
+    || process.env.HUGGING_FACE_HUB_TOKEN
+    || ''
+  ).trim();
+}
+
+function getAiProvider() {
+  const huggingFaceKey = getHuggingFaceApiKey();
+  if (huggingFaceKey) {
+    return {
+      id: 'huggingface',
+      label: 'Hugging Face',
+      apiUrl: HUGGINGFACE_API_URL,
+      apiKey: huggingFaceKey,
+      model: HUGGINGFACE_MODEL,
+    };
+  }
+
+  const dashScopeKey = getDashScopeApiKey();
+  if (dashScopeKey) {
+    return {
+      id: 'alibaba',
+      label: 'DashScope',
+      apiUrl: DASHSCOPE_API_URL,
+      apiKey: dashScopeKey,
+      model: DASHSCOPE_MODEL,
+    };
+  }
+
+  return null;
 }
 
 function getSummaryCacheKey(headlines, mode, geoContext = '', variant = 'full') {
@@ -130,22 +171,21 @@ function extractChoiceText(payload) {
   return '';
 }
 
-async function callDashScopeChat({
+async function callAiProviderChat(provider, {
   messages,
   temperature = 0.3,
   maxTokens = 256,
   topP = 0.9,
   responseFormat,
 }) {
-  const apiKey = getApiKey();
-  const response = await fetch(DASHSCOPE_API_URL, {
+  const response = await fetch(provider.apiUrl, {
     method: 'POST',
     headers: {
-      Authorization: `Bearer ${apiKey}`,
+      Authorization: `Bearer ${provider.apiKey}`,
       'Content-Type': 'application/json',
     },
     body: JSON.stringify({
-      model: MODEL,
+      model: provider.model,
       messages,
       temperature,
       max_tokens: maxTokens,
@@ -163,10 +203,11 @@ async function callDashScopeChat({
   }
 
   if (!response.ok) {
-    const error = new Error(`DashScope error: ${response.status}`);
+    const error = new Error(`${provider.label} error: ${response.status}`);
     error.status = response.status;
     error.payload = payload;
     error.rawText = rawText;
+    error.provider = provider.id;
     throw error;
   }
 
@@ -245,7 +286,7 @@ Rules:
   };
 }
 
-async function handleSummaryTask(body, corsHeaders) {
+async function handleSummaryTask(body, corsHeaders, provider) {
   const { headlines, mode = 'brief', geoContext = '', variant = 'full' } = body;
 
   if (!Array.isArray(headlines) || headlines.length === 0) {
@@ -258,7 +299,7 @@ async function handleSummaryTask(body, corsHeaders) {
     return json(
       {
         summary: cached.summary,
-        model: cached.model || MODEL,
+        model: cached.model || provider.model,
         provider: 'cache',
         cached: true,
       },
@@ -271,7 +312,7 @@ async function handleSummaryTask(body, corsHeaders) {
   const { messages } = buildSummaryPrompts(uniqueHeadlines, mode, geoContext, variant);
 
   try {
-    const { text, usage } = await callDashScopeChat({
+    const { text, usage } = await callAiProviderChat(provider, {
       messages,
       temperature: 0.3,
       maxTokens: 180,
@@ -286,7 +327,8 @@ async function handleSummaryTask(body, corsHeaders) {
       cacheKey,
       {
         summary: text,
-        model: MODEL,
+        model: provider.model,
+        provider: provider.id,
         timestamp: Date.now(),
       },
       SUMMARY_CACHE_TTL_SECONDS
@@ -295,8 +337,8 @@ async function handleSummaryTask(body, corsHeaders) {
     return json(
       {
         summary: text,
-        model: MODEL,
-        provider: 'alibaba',
+        model: provider.model,
+        provider: provider.id,
         cached: false,
         tokens: usage?.total_tokens || 0,
       },
@@ -307,12 +349,12 @@ async function handleSummaryTask(body, corsHeaders) {
   } catch (error) {
     const status = Number(error?.status) || 500;
     const rawText = typeof error?.rawText === 'string' ? error.rawText : '';
-    console.error('[AI summary] DashScope error:', status, rawText || error?.message || error);
-    return json({ error: 'DashScope API error', fallback: true }, status, corsHeaders);
+    console.error(`[AI summary] ${provider.label} error:`, status, rawText || error?.message || error);
+    return json({ error: `${provider.label} API error`, fallback: true }, status, corsHeaders);
   }
 }
 
-async function handleCountryBriefTask(body, corsHeaders) {
+async function handleCountryBriefTask(body, corsHeaders, provider) {
   const { country, code, context } = body;
 
   if (!country || !code) {
@@ -391,7 +433,7 @@ Rules:
   const userPrompt = `Country: ${country} (${code})${dataSection}`;
 
   try {
-    const { text } = await callDashScopeChat({
+    const { text } = await callAiProviderChat(provider, {
       messages: [
         { role: 'system', content: systemPrompt },
         { role: 'user', content: userPrompt },
@@ -405,7 +447,8 @@ Rules:
       brief: text || '',
       country,
       code,
-      model: MODEL,
+      model: provider.model,
+      provider: provider.id,
       generatedAt: new Date().toISOString(),
     };
 
@@ -422,12 +465,12 @@ Rules:
   } catch (error) {
     const status = Number(error?.status) || 502;
     const rawText = typeof error?.rawText === 'string' ? error.rawText : '';
-    console.error('[AI country brief] DashScope error:', status, rawText || error?.message || error);
+    console.error(`[AI country brief] ${provider.label} error:`, status, rawText || error?.message || error);
     return json({ error: 'AI service error', fallback: true }, status, corsHeaders);
   }
 }
 
-async function handleClassifyBatchTask(body, corsHeaders) {
+async function handleClassifyBatchTask(body, corsHeaders, provider) {
   const { titles, variant = 'full' } = body;
 
   if (!Array.isArray(titles) || titles.length === 0) {
@@ -479,7 +522,7 @@ Return a JSON object with this exact shape:
 Preserve the original order of the headlines.`;
 
   try {
-    const { text } = await callDashScopeChat({
+    const { text } = await callAiProviderChat(provider, {
       messages: [
         { role: 'system', content: systemPrompt },
         { role: 'user', content: numberedList },
@@ -530,12 +573,12 @@ Preserve the original order of the headlines.`;
   } catch (error) {
     const status = Number(error?.status) || 500;
     const rawText = typeof error?.rawText === 'string' ? error.rawText : '';
-    console.error('[AI classify batch] DashScope error:', status, rawText || error?.message || error);
+    console.error(`[AI classify batch] ${provider.label} error:`, status, rawText || error?.message || error);
     return json({ results, fallback: true }, status, corsHeaders);
   }
 }
 
-async function handleClassifySingleTask(body, corsHeaders) {
+async function handleClassifySingleTask(body, corsHeaders, provider) {
   const { title, variant = 'full' } = body;
   if (!title) {
     return json({ error: 'title param required' }, 400, corsHeaders);
@@ -557,7 +600,7 @@ async function handleClassifySingleTask(body, corsHeaders) {
     );
   }
 
-  const batchResponse = await handleClassifyBatchTask({ titles: [title], variant }, corsHeaders);
+  const batchResponse = await handleClassifyBatchTask({ titles: [title], variant }, corsHeaders, provider);
   const payload = await batchResponse.json();
   const result = Array.isArray(payload?.results) ? payload.results[0] : null;
 
@@ -578,16 +621,16 @@ async function handleClassifySingleTask(body, corsHeaders) {
   );
 }
 
-async function dispatchTask(body, corsHeaders) {
+async function dispatchTask(body, corsHeaders, provider) {
   switch (body.task) {
     case 'summary':
-      return handleSummaryTask(body, corsHeaders);
+      return handleSummaryTask(body, corsHeaders, provider);
     case 'country_brief':
-      return handleCountryBriefTask(body, corsHeaders);
+      return handleCountryBriefTask(body, corsHeaders, provider);
     case 'classify_batch':
-      return handleClassifyBatchTask(body, corsHeaders);
+      return handleClassifyBatchTask(body, corsHeaders, provider);
     case 'classify_single':
-      return handleClassifySingleTask(body, corsHeaders);
+      return handleClassifySingleTask(body, corsHeaders, provider);
     default:
       return json({ error: 'Unsupported AI task' }, 400, corsHeaders);
   }
@@ -608,19 +651,6 @@ export default async function handler(request) {
     return json({ error: 'Origin not allowed' }, 403, {});
   }
 
-  const apiKey = getApiKey();
-  if (!apiKey) {
-    return json(
-      {
-        fallback: true,
-        skipped: true,
-        reason: 'DASHSCOPE_API_KEY not configured',
-      },
-      200,
-      corsHeaders
-    );
-  }
-
   const contentLength = parseInt(request.headers.get('content-length') || '0', 10);
   if (contentLength > 51200) {
     return json({ error: 'Payload too large' }, 413, corsHeaders);
@@ -637,5 +667,18 @@ export default async function handler(request) {
     return json({ error: 'Invalid request body' }, 400, corsHeaders);
   }
 
-  return dispatchTask(body, corsHeaders);
+  const provider = getAiProvider();
+  if (!provider) {
+    return json(
+      {
+        fallback: true,
+        skipped: true,
+        reason: 'HF_TOKEN or DASHSCOPE_API_KEY not configured',
+      },
+      200,
+      corsHeaders
+    );
+  }
+
+  return dispatchTask(body, corsHeaders, provider);
 }

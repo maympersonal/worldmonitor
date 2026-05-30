@@ -2619,9 +2619,11 @@ Browser ML serves as the final fallback when cloud APIs are unavailable:
 ```
 User requests summary
     ↓
-1. Try Alibaba DashScope API (`qwen2.5-1.5b-instruct`)
+1. Try Hugging Face Inference Providers (`Qwen/Qwen2.5-7B-Instruct`)
     ↓ (unavailable or no key configured)
-2. Use Browser T5 (offline, always available)
+2. Try Alibaba DashScope API (`qwen2.5-1.5b-instruct`)
+    ↓ (unavailable or no key configured)
+3. Use Browser T5 (offline, always available)
 ```
 
 ### Lazy Loading
@@ -2644,7 +2646,7 @@ All ML inference runs in a dedicated Web Worker:
 
 Browser ML has constraints compared to the provider-backed path:
 
-| Aspect | Alibaba Qwen API | Browser (T5) |
+| Aspect | Hugging Face / Alibaba API | Browser (T5) |
 |--------|------------------|--------------|
 | Context window | Larger server-side context | 512 tokens |
 | Output quality | Higher | Moderate |
@@ -2711,8 +2713,9 @@ Every 2 minutes (with rate limiting), the system generates a concise situation b
 
 | Priority | Provider | Model | Latency | Use Case |
 |----------|----------|-------|---------|----------|
-| 1 | Alibaba DashScope | Qwen 2.5 1.5B Instruct | ~2-4s | Primary provider for summaries, country briefs, and headline classification |
-| 2 | Browser | T5 (ONNX) | ~5s | Offline fallback (local ML) |
+| 1 | Hugging Face Inference Providers | Qwen 2.5 7B Instruct | provider-dependent | Primary provider for summaries, country briefs, and headline classification |
+| 2 | Alibaba DashScope | Qwen 2.5 1.5B Instruct | ~2-4s | Optional fallback provider |
+| 3 | Browser | T5 (ONNX) | ~5s | Offline fallback (local ML) |
 
 **Caching Strategy**: Redis server-side caching prevents redundant API calls. When the same headline set has been summarized recently, the cached result is returned immediately.
 
@@ -3174,7 +3177,7 @@ The Service Status panel tracks the operational health of external services that
 
 External service outages can affect:
 
-- AI summarization (Alibaba DashScope outages)
+- AI summarization (Hugging Face or Alibaba DashScope outages)
 - Deployment pipelines (Vercel, GitHub outages)
 - API availability (Cloudflare, AWS outages)
 
@@ -3352,7 +3355,8 @@ Some features require API credentials. Without them, the corresponding layer is 
 | `CLOUDFLARE_API_TOKEN` | Internet outages | Free Cloudflare account with Radar access |
 | `ACLED_ACCESS_TOKEN` | Protest data (server-side) | Free registration at acleddata.com |
 | `WINGBITS_API_KEY` | Aircraft enrichment | Contact [Wingbits](https://wingbits.com) for API access |
-| `DASHSCOPE_API_KEY` | AI summaries, country briefs, headline classification | Create a Model Studio key in Alibaba Cloud DashScope |
+| `HF_TOKEN` | AI summaries, country briefs, headline classification | Create a token with Inference Providers access at [huggingface.co/settings/tokens](https://huggingface.co/settings/tokens) |
+| `DASHSCOPE_API_KEY` | Optional fallback AI provider | Create a Model Studio key in Alibaba Cloud DashScope |
 
 The dashboard functions fully without these keys—affected layers simply don't appear. Core functionality (news, markets, earthquakes, weather) requires no configuration.
 
@@ -3462,7 +3466,7 @@ api/                          # Vercel Edge serverless proxies
 ├── wingbits.js               # Aircraft enrichment proxy
 ├── risk-scores.js            # Pre-computed CII and strategic risk (Redis cached)
 ├── theater-posture.js        # Theater-level force aggregation (Redis cached)
-├── ai.js                     # Unified Alibaba Qwen API for summaries, briefs, classification
+├── ai.js                     # Unified AI provider route for summaries, briefs, classification
 ├── groq-summarize.js         # Compatibility shim to unified AI route
 └── openrouter-summarize.js   # Compatibility shim to unified AI route
 ```
@@ -3646,7 +3650,7 @@ See [ROADMAP.md](ROADMAP.md) for detailed planning. Recent intelligence enhancem
 ### Completed
 
 - ✅ **Focal Point Detection** - Intelligence synthesis correlating news entities with map signals
-- ✅ **AI-Powered Briefings** - Alibaba Qwen/Browser ML fallback chain for summarization
+- ✅ **AI-Powered Briefings** - Hugging Face/Alibaba Qwen/Browser ML fallback chain for summarization
 - ✅ **Military Surge Detection** - Alerts when multiple operators converge on regions
 - ✅ **News-Signal Correlation** - Surge alerts include related focal point context
 - ✅ **GDACS Integration** - UN disaster alert system for earthquakes, floods, cyclones, volcanoes

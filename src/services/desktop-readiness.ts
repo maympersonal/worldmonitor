@@ -20,6 +20,7 @@ export interface DesktopReadinessCheck {
 }
 
 const keyBackedFeatures: RuntimeFeatureId[] = [
+  'aiHuggingFace',
   'aiAlibabaQwen',
   'economicFred',
   'internetOutages',
@@ -81,7 +82,7 @@ export const DESKTOP_PARITY_FEATURES: DesktopParityFeature[] = [
     apiRoutes: ['/api/ai'],
     apiHandlers: ['api/ai.js'],
     locality: 'api-key',
-    fallback: 'Browser summarizer executes when Alibaba Qwen is unavailable.',
+    fallback: 'Browser summarizer executes when Hugging Face and Alibaba Qwen are unavailable.',
     priority: 2,
   },
   {
@@ -127,7 +128,7 @@ export function getDesktopReadinessChecks(localBackendEnabled: boolean): Desktop
     { id: 'startup', label: 'Desktop startup + sidecar API health', ready: localBackendEnabled },
     { id: 'map', label: 'Map rendering (local layers + static geo assets)', ready: true },
     { id: 'core-intel', label: 'Core intelligence panels (Live News, Monitor, Strategic Risk)', ready: true },
-    { id: 'summaries', label: 'Summaries (provider-backed or browser fallback)', ready: isFeatureAvailable('aiAlibabaQwen') },
+    { id: 'summaries', label: 'Summaries (provider-backed or browser fallback)', ready: isFeatureAvailable('aiHuggingFace') || isFeatureAvailable('aiAlibabaQwen') },
     { id: 'market', label: 'Market panel live data paths', ready: true },
     { id: 'live-tracking', label: 'At least one live-tracking mode (AIS or OpenSky)', ready: liveTrackingReady },
   ];

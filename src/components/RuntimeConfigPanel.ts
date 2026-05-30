@@ -20,6 +20,7 @@ import { isDesktopRuntime } from '@/services/runtime';
 import { t } from '@/services/i18n';
 
 const SIGNUP_URLS: Partial<Record<RuntimeSecretKey, string>> = {
+  HF_TOKEN: 'https://huggingface.co/settings/tokens',
   DASHSCOPE_API_KEY: 'https://www.alibabacloud.com/help/en/model-studio/get-api-key',
   FRED_API_KEY: 'https://fred.stlouisfed.org/docs/api/api_key.html',
   EIA_API_KEY: 'https://www.eia.gov/opendata/register.php',

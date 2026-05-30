@@ -1,14 +1,14 @@
 /**
  * Summarization Service with Fallback Chain
  * Server-side Redis caching handles cross-user deduplication
- * Fallback: Alibaba Qwen -> Browser T5
+ * Fallback: Hugging Face -> Alibaba Qwen -> Browser T5
  */
 
 import { mlWorker } from './ml-worker';
 import { SITE_VARIANT } from '@/config';
 import { isFeatureAvailable } from './runtime-config';
 
-export type SummarizationProvider = 'alibaba' | 'browser' | 'cache';
+export type SummarizationProvider = 'huggingface' | 'alibaba' | 'browser' | 'cache';
 
 export interface SummarizationResult {
   summary: string;
@@ -23,11 +23,11 @@ export interface GenerateSummaryOptions {
 }
 
 function hasRemoteSummaryProvider(): boolean {
-  return isFeatureAvailable('aiAlibabaQwen');
+  return isFeatureAvailable('aiHuggingFace') || isFeatureAvailable('aiAlibabaQwen');
 }
 
-async function tryAlibaba(headlines: string[], geoContext?: string): Promise<SummarizationResult | null> {
-  if (!isFeatureAvailable('aiAlibabaQwen')) return null;
+async function tryRemoteSummary(headlines: string[], geoContext?: string): Promise<SummarizationResult | null> {
+  if (!hasRemoteSummaryProvider()) return null;
   try {
     const response = await fetch('/api/ai', {
       method: 'POST',
@@ -38,7 +38,7 @@ async function tryAlibaba(headlines: string[], geoContext?: string): Promise<Sum
     if (!response.ok) {
       const data = await response.json().catch(() => ({}));
       if (data.fallback) return null;
-      throw new Error(`Alibaba error: ${response.status}`);
+      throw new Error(`AI provider error: ${response.status}`);
     }
 
     const data = await response.json();
@@ -46,15 +46,22 @@ async function tryAlibaba(headlines: string[], geoContext?: string): Promise<Sum
       return null;
     }
 
-    const provider = data.cached ? 'cache' : 'alibaba';
-    console.log(`[Summarization] ${provider === 'cache' ? 'Redis cache hit' : 'Alibaba success'}:`, data.model);
+    const provider = data.cached
+      ? 'cache'
+      : data.provider === 'huggingface'
+        ? 'huggingface'
+        : 'alibaba';
+    console.log(
+      `[Summarization] ${provider === 'cache' ? 'Redis cache hit' : `${provider} success`}:`,
+      data.model
+    );
     return {
       summary: data.summary,
       provider: provider as SummarizationProvider,
       cached: !!data.cached,
     };
   } catch (error) {
-    console.warn('[Summarization] Alibaba failed:', error);
+    console.warn('[Summarization] Remote provider failed:', error);
     return null;
   }
 }
@@ -88,7 +95,7 @@ async function tryBrowserT5(headlines: string[]): Promise<SummarizationResult | 
 }
 
 /**
- * Generate a summary using the fallback chain: Alibaba Qwen -> Browser T5
+ * Generate a summary using the fallback chain: Hugging Face -> Alibaba Qwen -> Browser T5
  * Server-side Redis caching is handled by the API endpoints
  * @param geoContext Optional geographic signal context to include in the prompt
  */
@@ -117,11 +124,11 @@ export async function generateSummary(
 
   const totalSteps = allowBrowserFallback ? 2 : 1;
 
-  // Step 1: Try Alibaba Qwen (shared server route + Redis cache)
-  onProgress?.(1, totalSteps, 'Connecting to Alibaba Qwen...');
-  const alibabaResult = await tryAlibaba(headlines, geoContext);
-  if (alibabaResult) {
-    return alibabaResult;
+  // Step 1: Try the shared server route. It prefers Hugging Face, then DashScope.
+  onProgress?.(1, totalSteps, 'Connecting to AI provider...');
+  const remoteResult = await tryRemoteSummary(headlines, geoContext);
+  if (remoteResult) {
+    return remoteResult;
   }
 
   if (!allowBrowserFallback) {

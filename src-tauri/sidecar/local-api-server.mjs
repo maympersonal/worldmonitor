@@ -7,6 +7,49 @@ import { gzipSync } from 'node:zlib';
 import path from 'node:path';
 import { pathToFileURL } from 'node:url';
 
+const ENV_LOCAL_FILE = '.env.local';
+
+function parseDotenvLine(line) {
+  const trimmed = line.trim();
+  if (!trimmed || trimmed.startsWith('#')) return null;
+
+  const equalsIndex = trimmed.indexOf('=');
+  if (equalsIndex === -1) return null;
+
+  const key = trimmed.slice(0, equalsIndex).trim();
+  if (!/^[A-Za-z_][A-Za-z0-9_]*$/.test(key)) return null;
+
+  let value = trimmed.slice(equalsIndex + 1).trim();
+  const quote = value[0];
+  if ((quote === '"' || quote === "'") && value.endsWith(quote)) {
+    value = value.slice(1, -1);
+  } else {
+    const commentIndex = value.search(/\s#/);
+    if (commentIndex !== -1) value = value.slice(0, commentIndex).trim();
+  }
+
+  return [key, value];
+}
+
+function loadEnvLocal() {
+  const envPath = path.resolve(
+    process.env.LOCAL_API_RESOURCE_DIR || process.cwd(),
+    ENV_LOCAL_FILE,
+  );
+  if (!existsSync(envPath)) return;
+
+  for (const line of readFileSync(envPath, 'utf8').split(/\r?\n/)) {
+    const parsed = parseDotenvLine(line);
+    if (!parsed) continue;
+    const [key, value] = parsed;
+    if (process.env[key] == null) {
+      process.env[key] = value;
+    }
+  }
+}
+
+loadEnvLocal();
+
 // Monkey-patch globalThis.fetch to force IPv4 for HTTPS requests.
 // Node.js built-in fetch (undici) tries IPv6 first via Happy Eyeballs.
 // Government APIs (EIA, NASA FIRMS, FRED) publish AAAA records but their
@@ -81,7 +124,7 @@ globalThis.fetch = function ipv4Fetch(input, init) {
 };
 
 const ALLOWED_ENV_KEYS = new Set([
-  'DASHSCOPE_API_KEY', 'FRED_API_KEY', 'EIA_API_KEY',
+  'HF_TOKEN', 'DASHSCOPE_API_KEY', 'FRED_API_KEY', 'EIA_API_KEY',
   'CLOUDFLARE_API_TOKEN', 'ACLED_ACCESS_TOKEN', 'URLHAUS_AUTH_KEY',
   'OTX_API_KEY', 'ABUSEIPDB_API_KEY', 'WINGBITS_API_KEY', 'WS_RELAY_URL',
   'VITE_OPENSKY_RELAY_URL', 'OPENSKY_CLIENT_ID', 'OPENSKY_CLIENT_SECRET',
@@ -475,6 +518,31 @@ async function validateSecretAgainstProvider(key, rawValue, context = {}) {
 
   try {
     switch (key) {
+    case 'HF_TOKEN': {
+      const response = await fetchWithTimeout('https://router.huggingface.co/v1/chat/completions', {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${value}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          model: 'Qwen/Qwen2.5-7B-Instruct',
+          messages: [
+            { role: 'system', content: 'Reply with OK only.' },
+            { role: 'user', content: 'OK' },
+          ],
+          temperature: 0,
+          max_tokens: 4,
+        }),
+      });
+      const text = await response.text();
+      if (isAuthFailure(response.status, text)) {
+        return fail('Hugging Face rejected this token or it lacks Inference Providers access');
+      }
+      if (!response.ok) return fail(`Hugging Face probe failed (${response.status})`);
+      return ok('Hugging Face token verified for chat completions');
+    }
+
     case 'DASHSCOPE_API_KEY': {
       const response = await fetchWithTimeout('https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions', {
         method: 'POST',

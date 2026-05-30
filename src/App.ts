@@ -961,7 +961,7 @@ export class App {
           if (lines.length > 0) {
             this.countryBriefPage!.updateBrief({ brief: lines.join('\n'), country, code, fallback: true });
           } else {
-            this.countryBriefPage!.updateBrief({ brief: '', country, code, error: 'No AI service available. Configure DASHSCOPE_API_KEY in Settings for full briefs.' });
+            this.countryBriefPage!.updateBrief({ brief: '', country, code, error: 'No AI service available. Configure HF_TOKEN in Settings for full briefs.' });
           }
         }
       }
