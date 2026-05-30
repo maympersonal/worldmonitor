@@ -878,6 +878,7 @@ The AI summarization pipeline adds content-based deduplication: headlines are ha
 | **Input sanitization** | User-facing content passes through `escapeHtml()` (prevents XSS) and `sanitizeUrl()` (blocks `javascript:` and `data:` URIs). URLs use `escapeAttr()` for attribute context encoding. |
 | **Query parameter validation** | API endpoints validate input formats (e.g., stablecoin coin IDs must match `[a-z0-9-]+`, bounding box params are numeric). |
 | **IP rate limiting** | AI endpoints use Upstash Redis-backed rate limiting to prevent abuse of Groq/OpenRouter quotas. |
+| **Optional web authentication** | Vercel Routing Middleware and the local Vite server can require HTTP Basic Auth before serving the dashboard, static assets, or API routes. Set `WORLD_MONITOR_AUTH_USERNAME` and `WORLD_MONITOR_AUTH_PASSWORD` to enable it. |
 | **Desktop sidecar auth** | The local API sidecar requires a per-session `Bearer` token generated at launch. The token is stored in Rust state and injected into the sidecar environment — only the Tauri frontend can retrieve it via IPC. Health check endpoints are exempt. |
 | **OS keychain storage** | Desktop API keys are stored in the operating system's credential manager (macOS Keychain, Windows Credential Manager), never in plaintext files or environment variables on disk. |
 | **No debug endpoints** | The `api/debug-env.js` endpoint returns 404 in production — it exists only as a disabled placeholder. |
@@ -916,6 +917,7 @@ The `.env.example` file documents every variable with descriptions and registrat
 | **Tracking** | `WINGBITS_API_KEY`, `AISSTREAM_API_KEY` | Free |
 | **Geopolitical** | `ACLED_ACCESS_TOKEN`, `CLOUDFLARE_API_TOKEN`, `NASA_FIRMS_API_KEY` | Free for researchers |
 | **Relay** | `WS_RELAY_URL`, `VITE_WS_RELAY_URL`, `OPENSKY_CLIENT_ID/SECRET` | Self-hosted |
+| **Web auth** | `WORLD_MONITOR_AUTH_USERNAME`, `WORLD_MONITOR_AUTH_PASSWORD` | Optional |
 | **UI** | `VITE_VARIANT`, `VITE_MAP_INTERACTION_MODE` (`flat` or `3d`, default `3d`) | N/A |
 
 See [`.env.example`](./.env.example) for the complete list with registration links.
@@ -937,6 +939,8 @@ vercel          # Follow prompts to link/create project
 
 Add your API keys in the Vercel dashboard under **Settings → Environment Variables**, then visit your deployment URL. The free Hobby plan supports all 60+ edge functions.
 
+To make the web dashboard private, add both `WORLD_MONITOR_AUTH_USERNAME` and `WORLD_MONITOR_AUTH_PASSWORD` in **Settings → Environment Variables** and redeploy. When those variables are empty, the site remains public.
+
 ### Option 2: Local Development with Vercel CLI
 
 To run everything locally (frontend + edge functions):
@@ -948,6 +952,8 @@ vercel dev                    # Starts on http://localhost:3000
 ```
 
 > **Important**: Use `vercel dev` instead of `npm run dev`. The Vercel CLI emulates the edge runtime locally so all `api/` endpoints work. Plain `npm run dev` only starts Vite and the API layer won't be available.
+
+If `WORLD_MONITOR_AUTH_USERNAME` and `WORLD_MONITOR_AUTH_PASSWORD` are set in `.env.local`, local Vite runs (`npm run dev`, `npm run dev:local`, and `npm run preview`) also require the same browser login before serving the app.
 
 ### Option 3: Local Development Without Vercel CLI
 

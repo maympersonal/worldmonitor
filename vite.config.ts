@@ -1,12 +1,19 @@
 import { defineConfig, type Plugin } from 'vite';
 import { VitePWA } from 'vite-plugin-pwa';
-import { readFileSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
+import type { IncomingMessage, ServerResponse } from 'node:http';
 import { resolve } from 'node:path';
 import {
   getErrorMessage,
   normalizeYouTubeChannelRef,
   resolveChannelVideoFromHtml,
 } from './api/youtube/live-shared.js';
+
+const AUTH_REALM = 'World Monitor Local';
+const AUTH_USERNAME_ENV = 'WORLD_MONITOR_AUTH_USERNAME';
+const AUTH_PASSWORD_ENV = 'WORLD_MONITOR_AUTH_PASSWORD';
+
+loadLocalEnvFile();
 
 const pkg = JSON.parse(readFileSync(new URL('./package.json', import.meta.url), 'utf-8')) as {
   version: string;
@@ -108,6 +115,131 @@ const VARIANT_META: Record<string, {
 const activeVariant = process.env.VITE_VARIANT || 'full';
 const activeMeta = VARIANT_META[activeVariant] || VARIANT_META.full;
 
+function loadLocalEnvFile(): void {
+  const envUrl = new URL('./.env.local', import.meta.url);
+  if (!existsSync(envUrl)) return;
+
+  const contents = readFileSync(envUrl, 'utf-8');
+  for (const line of contents.split(/\r?\n/)) {
+    const parsed = parseDotenvLine(line);
+    if (!parsed) continue;
+    const [key, value] = parsed;
+    if (process.env[key] == null) {
+      process.env[key] = value;
+    }
+  }
+}
+
+function parseDotenvLine(line: string): [string, string] | null {
+  const trimmed = line.trim();
+  if (!trimmed || trimmed.startsWith('#')) return null;
+
+  const equalsIndex = trimmed.indexOf('=');
+  if (equalsIndex === -1) return null;
+
+  const key = trimmed.slice(0, equalsIndex).trim();
+  if (!/^[A-Za-z_][A-Za-z0-9_]*$/.test(key)) return null;
+
+  let value = trimmed.slice(equalsIndex + 1).trim();
+  const quote = value[0];
+  if ((quote === '"' || quote === "'") && value.endsWith(quote)) {
+    value = value.slice(1, -1);
+  } else {
+    const commentIndex = value.search(/\s#/);
+    if (commentIndex !== -1) value = value.slice(0, commentIndex).trim();
+  }
+
+  return [key, value];
+}
+
+function localBasicAuthPlugin(): Plugin {
+  return {
+    name: 'local-basic-auth',
+    configureServer(server) {
+      installLocalBasicAuth(server.middlewares, 'dev server');
+    },
+    configurePreviewServer(server) {
+      installLocalBasicAuth(server.middlewares, 'preview server');
+    },
+  };
+}
+
+function installLocalBasicAuth(
+  middlewares: {
+    use: (
+      handler: (req: IncomingMessage, res: ServerResponse, next: () => void) => void
+    ) => void;
+  },
+  label: string
+): void {
+  const expectedUsername = (process.env[AUTH_USERNAME_ENV] || '').trim();
+  const expectedPassword = process.env[AUTH_PASSWORD_ENV] || '';
+
+  if (!expectedUsername && !expectedPassword) return;
+
+  if (!expectedUsername || !expectedPassword) {
+    middlewares.use((_req, res) => {
+      res.statusCode = 503;
+      res.setHeader('Cache-Control', 'no-store');
+      res.setHeader('Content-Type', 'text/plain; charset=utf-8');
+      res.end(`Local authentication is enabled but incomplete. Set both ${AUTH_USERNAME_ENV} and ${AUTH_PASSWORD_ENV}.`);
+    });
+    return;
+  }
+
+  console.info(`[auth] Protecting Vite ${label} with HTTP Basic Auth`);
+  middlewares.use((req, res, next) => {
+    const credentials = parseBasicAuthHeader(req.headers.authorization);
+    const isAuthorized =
+      credentials &&
+      constantTimeEqual(credentials.username, expectedUsername) &&
+      constantTimeEqual(credentials.password, expectedPassword);
+
+    if (isAuthorized) {
+      delete req.headers.authorization;
+      next();
+      return;
+    }
+
+    res.statusCode = 401;
+    res.setHeader('WWW-Authenticate', `Basic realm="${AUTH_REALM}", charset="UTF-8"`);
+    res.setHeader('Cache-Control', 'no-store');
+    res.setHeader('Content-Type', 'text/plain; charset=utf-8');
+    res.end('Authentication required');
+  });
+}
+
+function parseBasicAuthHeader(header: string | undefined): { username: string; password: string } | null {
+  if (!header || !header.startsWith('Basic ')) return null;
+
+  try {
+    const decoded = Buffer.from(header.slice('Basic '.length).trim(), 'base64').toString('utf-8');
+    const separatorIndex = decoded.indexOf(':');
+    if (separatorIndex < 0) return null;
+
+    return {
+      username: decoded.slice(0, separatorIndex),
+      password: decoded.slice(separatorIndex + 1),
+    };
+  } catch {
+    return null;
+  }
+}
+
+function constantTimeEqual(value: string, expected: string): boolean {
+  const encoder = new TextEncoder();
+  const valueBytes = encoder.encode(value);
+  const expectedBytes = encoder.encode(expected);
+  const length = Math.max(valueBytes.length, expectedBytes.length);
+  let mismatch = valueBytes.length ^ expectedBytes.length;
+
+  for (let index = 0; index < length; index += 1) {
+    mismatch |= (valueBytes[index] || 0) ^ (expectedBytes[index] || 0);
+  }
+
+  return mismatch === 0;
+}
+
 function htmlVariantPlugin(): Plugin {
   return {
     name: 'html-variant',
@@ -198,6 +330,7 @@ export default defineConfig({
     __APP_VERSION__: JSON.stringify(pkg.version),
   },
   plugins: [
+    localBasicAuthPlugin(),
     htmlVariantPlugin(),
     ...(useLocalApiProxy ? [] : [youtubeLivePlugin()]),
     ...(isDesktopRuntime ? [] : [
