@@ -292,9 +292,25 @@ export function classifyByKeyword(title: string, variant = 'full'): ThreatClassi
 // Batched AI classification — collects headlines then sends one API call
 const BATCH_SIZE = 20;
 const BATCH_DELAY_MS = 500;
+const AI_QUOTA_PAUSE_MS = 60 * 60 * 1000;
 let batchPaused = false;
 let batchTimer: ReturnType<typeof setTimeout> | null = null;
 const batchQueue: Array<{ title: string; variant: string; resolve: (v: ThreatClassification | null) => void }> = [];
+
+function getRetryAfterMs(response: Response): number | null {
+  const retryAfterSeconds = Number(response.headers.get('Retry-After') || '');
+  return Number.isFinite(retryAfterSeconds) && retryAfterSeconds > 0
+    ? retryAfterSeconds * 1000
+    : null;
+}
+
+function pauseAiClassification(delayMs: number, message: string, batch: Array<{ resolve: (v: ThreatClassification | null) => void }>): void {
+  batchPaused = true;
+  console.warn(`[Classify] ${message} — pausing AI classification for ${Math.ceil(delayMs / 1000)}s`);
+  for (const job of batch) job.resolve(null);
+  while (batchQueue.length > 0) batchQueue.shift()!.resolve(null);
+  setTimeout(() => { batchPaused = false; scheduleBatch(); }, delayMs);
+}
 
 function flushBatch(): void {
   if (batchPaused || batchQueue.length === 0) return;
@@ -310,18 +326,32 @@ function flushBatch(): void {
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ task: 'classify_batch', titles, variant }),
   })
-    .then(resp => {
+    .then(async resp => {
+      if (resp.status === 402) {
+        await resp.json().catch(() => ({}));
+        pauseAiClassification(
+          getRetryAfterMs(resp) ?? AI_QUOTA_PAUSE_MS,
+          'AI provider quota exhausted',
+          batch
+        );
+        return null;
+      }
       if (resp.status === 429 || resp.status >= 500) {
-        batchPaused = true;
         const delay = resp.status === 429 ? 60_000 : 30_000;
-        console.warn(`[Classify] ${resp.status} — pausing AI classification for ${delay / 1000}s`);
-        for (const job of batch) job.resolve(null);
-        while (batchQueue.length > 0) batchQueue.shift()!.resolve(null);
-        setTimeout(() => { batchPaused = false; scheduleBatch(); }, delay);
+        pauseAiClassification(delay, String(resp.status), batch);
         return null;
       }
       if (!resp.ok) { for (const job of batch) job.resolve(null); return null; }
-      return resp.json();
+      const data = await resp.json();
+      if (data?.quotaExhausted) {
+        pauseAiClassification(
+          getRetryAfterMs(resp) ?? AI_QUOTA_PAUSE_MS,
+          'AI provider quota exhausted',
+          batch
+        );
+        return null;
+      }
+      return data;
     })
     .then(data => {
       if (!data) return;

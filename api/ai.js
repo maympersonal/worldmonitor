@@ -22,6 +22,7 @@ const SUMMARY_CACHE_VERSION = 'v5';
 const COUNTRY_CACHE_VERSION = 'ci-v3';
 const CLASSIFY_CACHE_VERSION = 'v2';
 const MAX_BATCH_SIZE = 20;
+const QUOTA_RETRY_AFTER_SECONDS = 3600;
 
 const VALID_LEVELS = ['critical', 'high', 'medium', 'low', 'info'];
 const VALID_CATEGORIES = [
@@ -169,6 +170,27 @@ function extractChoiceText(payload) {
   }
 
   return '';
+}
+
+function isQuotaExhaustedError(status, rawText = '') {
+  return status === 402 || /depleted your monthly included credits|purchase pre-paid credits|payment required/i.test(rawText);
+}
+
+function buildProviderErrorPayload(provider, status, rawText = '') {
+  const quotaExhausted = isQuotaExhaustedError(status, rawText);
+  return {
+    error: quotaExhausted ? `${provider.label} quota exhausted` : `${provider.label} API error`,
+    fallback: true,
+    provider: provider.id,
+    providerStatus: status,
+    ...(quotaExhausted ? { quotaExhausted: true } : {}),
+  };
+}
+
+function buildProviderErrorHeaders(status, rawText = '') {
+  return isQuotaExhaustedError(status, rawText)
+    ? { 'Retry-After': String(QUOTA_RETRY_AFTER_SECONDS) }
+    : {};
 }
 
 async function callAiProviderChat(provider, {
@@ -350,7 +372,12 @@ async function handleSummaryTask(body, corsHeaders, provider) {
     const status = Number(error?.status) || 500;
     const rawText = typeof error?.rawText === 'string' ? error.rawText : '';
     console.error(`[AI summary] ${provider.label} error:`, status, rawText || error?.message || error);
-    return json({ error: `${provider.label} API error`, fallback: true }, status, corsHeaders);
+    return json(
+      buildProviderErrorPayload(provider, status, rawText),
+      status,
+      corsHeaders,
+      buildProviderErrorHeaders(status, rawText)
+    );
   }
 }
 
@@ -466,7 +493,12 @@ Rules:
     const status = Number(error?.status) || 502;
     const rawText = typeof error?.rawText === 'string' ? error.rawText : '';
     console.error(`[AI country brief] ${provider.label} error:`, status, rawText || error?.message || error);
-    return json({ error: 'AI service error', fallback: true }, status, corsHeaders);
+    return json(
+      buildProviderErrorPayload(provider, status, rawText),
+      status,
+      corsHeaders,
+      buildProviderErrorHeaders(status, rawText)
+    );
   }
 }
 
@@ -574,7 +606,15 @@ Preserve the original order of the headlines.`;
     const status = Number(error?.status) || 500;
     const rawText = typeof error?.rawText === 'string' ? error.rawText : '';
     console.error(`[AI classify batch] ${provider.label} error:`, status, rawText || error?.message || error);
-    return json({ results, fallback: true }, status, corsHeaders);
+    return json(
+      {
+        results,
+        ...buildProviderErrorPayload(provider, status, rawText),
+      },
+      status,
+      corsHeaders,
+      buildProviderErrorHeaders(status, rawText)
+    );
   }
 }
 

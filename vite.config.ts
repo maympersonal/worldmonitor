@@ -479,9 +479,20 @@ export default defineConfig({
     hmr: isE2E ? false : undefined,
     watch: {
       ignored: [
+        '**/.git/**',
+        '**/node_modules/**',
+        '**/dist/**',
+        '**/coverage/**',
+        '**/src-tauri/target/**',
+        '**/src-tauri/target-install/**',
+        '**/src-tauri/gen/**',
+        '**/src-tauri/sidecar/node/**',
         '**/test-results/**',
         '**/playwright-report/**',
         '**/.playwright-mcp/**',
+        '**/*-snapshots/**',
+        '**/*.log',
+        '**/api-cache.json',
       ],
     },
     proxy: {

@@ -22,12 +22,47 @@ export interface GenerateSummaryOptions {
   allowBrowserFallback?: boolean;
 }
 
+const REMOTE_QUOTA_COOLDOWN_MS = 60 * 60 * 1000;
+const REMOTE_QUOTA_COOLDOWN_KEY = 'summary:remote-quota-cooldown-until';
+let remoteQuotaCooldownUntil = readRemoteQuotaCooldown();
+
+function readRemoteQuotaCooldown(): number {
+  try {
+    const value = Number(localStorage.getItem(REMOTE_QUOTA_COOLDOWN_KEY) || '0');
+    return Number.isFinite(value) ? value : 0;
+  } catch {
+    return 0;
+  }
+}
+
+function isRemoteQuotaCoolingDown(): boolean {
+  return Date.now() < remoteQuotaCooldownUntil;
+}
+
+function markRemoteQuotaExhausted(retryAfterSeconds?: number): void {
+  const retryAfterMs = Number.isFinite(retryAfterSeconds)
+    ? Math.max(0, Number(retryAfterSeconds) * 1000)
+    : REMOTE_QUOTA_COOLDOWN_MS;
+  remoteQuotaCooldownUntil = Date.now() + retryAfterMs;
+  try {
+    localStorage.setItem(REMOTE_QUOTA_COOLDOWN_KEY, String(remoteQuotaCooldownUntil));
+  } catch {
+    // Ignore storage failures; the in-memory cooldown still prevents spam.
+  }
+  console.warn(`[Summarization] Remote AI quota exhausted; using browser fallback for ${Math.ceil(retryAfterMs / 60000)} minutes`);
+}
+
+function getRetryAfterSeconds(response: Response): number | undefined {
+  const value = Number(response.headers.get('Retry-After') || '');
+  return Number.isFinite(value) && value > 0 ? value : undefined;
+}
+
 function hasRemoteSummaryProvider(): boolean {
   return isFeatureAvailable('aiHuggingFace') || isFeatureAvailable('aiAlibabaQwen');
 }
 
 async function tryRemoteSummary(headlines: string[], geoContext?: string): Promise<SummarizationResult | null> {
-  if (!hasRemoteSummaryProvider()) return null;
+  if (!hasRemoteSummaryProvider() || isRemoteQuotaCoolingDown()) return null;
   try {
     const response = await fetch('/api/ai', {
       method: 'POST',
@@ -37,11 +72,16 @@ async function tryRemoteSummary(headlines: string[], geoContext?: string): Promi
 
     if (!response.ok) {
       const data = await response.json().catch(() => ({}));
+      if (response.status === 402 || data.quotaExhausted) markRemoteQuotaExhausted(getRetryAfterSeconds(response));
       if (data.fallback) return null;
       throw new Error(`AI provider error: ${response.status}`);
     }
 
     const data = await response.json();
+    if (data.quotaExhausted) {
+      markRemoteQuotaExhausted(getRetryAfterSeconds(response));
+      return null;
+    }
     if (data.fallback || data.skipped || typeof data.summary !== 'string' || !data.summary.trim()) {
       return null;
     }
@@ -69,8 +109,11 @@ async function tryRemoteSummary(headlines: string[], geoContext?: string): Promi
 async function tryBrowserT5(headlines: string[]): Promise<SummarizationResult | null> {
   try {
     if (!mlWorker.isAvailable) {
-      console.log('[Summarization] Browser ML not available');
-      return null;
+      const ready = await mlWorker.init();
+      if (!ready) {
+        console.log('[Summarization] Browser ML not available');
+        return null;
+      }
     }
 
     const combinedText = headlines.slice(0, 6).map(h => h.slice(0, 80)).join('. ');
@@ -110,7 +153,7 @@ export async function generateSummary(
   }
 
   const allowBrowserFallback = options.allowBrowserFallback ?? true;
-  const remoteAvailable = hasRemoteSummaryProvider();
+  const remoteAvailable = hasRemoteSummaryProvider() && !isRemoteQuotaCoolingDown();
   const browserAvailable = allowBrowserFallback && mlWorker.isAvailable;
 
   if (!remoteAvailable && !browserAvailable) {
@@ -124,11 +167,13 @@ export async function generateSummary(
 
   const totalSteps = allowBrowserFallback ? 2 : 1;
 
-  // Step 1: Try the shared server route. It prefers Hugging Face, then DashScope.
-  onProgress?.(1, totalSteps, 'Connecting to AI provider...');
-  const remoteResult = await tryRemoteSummary(headlines, geoContext);
-  if (remoteResult) {
-    return remoteResult;
+  if (remoteAvailable) {
+    // Step 1: Try the shared server route. It prefers Hugging Face, then DashScope.
+    onProgress?.(1, totalSteps, 'Connecting to AI provider...');
+    const remoteResult = await tryRemoteSummary(headlines, geoContext);
+    if (remoteResult) {
+      return remoteResult;
+    }
   }
 
   if (!allowBrowserFallback) {
