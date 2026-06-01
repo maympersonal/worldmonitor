@@ -150,6 +150,25 @@ export interface CountryBriefSignals {
 }
 
 export class App {
+  private static readonly CUBA_PROVINCE_CATEGORY_KEYS = new Set([
+    'pinarDelRio',
+    'artemisa',
+    'laHabana',
+    'islaDeLaJuventud',
+    'mayabeque',
+    'matanzas',
+    'cienfuegos',
+    'villaClara',
+    'sanctiSpiritus',
+    'ciegoDeAvila',
+    'camaguey',
+    'lasTunas',
+    'holguin',
+    'granma',
+    'santiagoDeCuba',
+    'guantanamo',
+  ]);
+
   private container: HTMLElement;
   private readonly PANEL_ORDER_KEY = 'panel-order';
   private map: MapContainer | null = null;
@@ -3354,11 +3373,21 @@ export class App {
     }
 
     const filteredItems = this.filterItemsByTimeRange(provinceScopedItems);
+    const shouldRelaxProvinceTimeRange =
+      App.CUBA_PROVINCE_CATEGORY_KEYS.has(category)
+      && filteredItems.length === 0
+      && provinceScopedItems.length > 0;
+    const itemsToRender = shouldRelaxProvinceTimeRange ? provinceScopedItems : filteredItems;
+
     if (filteredItems.length === 0 && provinceScopedItems.length > 0) {
+      if (shouldRelaxProvinceTimeRange) {
+        panel.renderNews(itemsToRender);
+        return;
+      }
       panel.renderFilteredEmpty(`No items in ${this.getTimeRangeLabel()}`);
       return;
     }
-    panel.renderNews(filteredItems);
+    panel.renderNews(itemsToRender);
   }
 
   private applyTimeRangeFilterToNewsPanels(): void {

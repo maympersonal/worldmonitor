@@ -476,18 +476,20 @@ function parseRssDocument(xml: string): { doc: Document; recovered: boolean } {
 export async function fetchFeed(feed: Feed): Promise<NewsItem[]> {
   if (feedCache.size > MAX_CACHE_ENTRIES / 2) cleanupCaches();
   const hasScopedCubaFilter = isCubaScopedFeed(feed.name);
+  const hasProvinceFilter = Boolean(feed.provinceTextFilterId);
+  const hasStrictLocalFilter = hasScopedCubaFilter || hasProvinceFilter;
 
   if (isFeedOnCooldown(feed.name)) {
     const cached = feedCache.get(feed.name);
-    if (cached && !(hasScopedCubaFilter && cached.items.length === 0)) return cached.items;
+    if (cached && !(hasStrictLocalFilter && cached.items.length === 0)) return cached.items;
     const persistent = await loadPersistentFeed(feed.name);
-    if (persistent && !(hasScopedCubaFilter && persistent.length === 0)) return persistent;
+    if (persistent && !(hasStrictLocalFilter && persistent.length === 0)) return persistent;
     return [];
   }
 
   const cached = feedCache.get(feed.name);
   if (cached && Date.now() - cached.timestamp < CACHE_TTL) {
-    if (!(hasScopedCubaFilter && cached.items.length === 0)) {
+    if (!(hasStrictLocalFilter && cached.items.length === 0)) {
       return cached.items;
     }
   }
@@ -578,7 +580,7 @@ export async function fetchFeed(feed: Feed): Promise<NewsItem[]> {
           );
 
         let effectiveCandidates = filteredCandidates;
-        if (hasScopedCubaFilter && filteredCandidates.length === 0 && parsedCandidates.length > 0) {
+        if (hasScopedCubaFilter && !hasProvinceFilter && filteredCandidates.length === 0 && parsedCandidates.length > 0) {
           // Defensive fallback: avoid rendering empty Cuba-scoped panels when
           // upstream headlines are valid but wording misses strict regex gates.
           effectiveCandidates = parsedCandidates;
@@ -608,7 +610,7 @@ export async function fetchFeed(feed: Feed): Promise<NewsItem[]> {
           console.info(`[RSS] ${feed.name} recovered via fallback source`);
         }
 
-        if (parsed.length > 0 || !hasScopedCubaFilter) {
+        if (parsed.length > 0 || !hasStrictLocalFilter) {
           feedCache.set(feed.name, { items: parsed, timestamp: Date.now() });
           void setPersistentCache(`feed:${feed.name}`, toSerializable(parsed));
         } else {
