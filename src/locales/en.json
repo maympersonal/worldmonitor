@@ -595,7 +595,7 @@
         "pipelines": "Pipelines",
         "militaryActivity": "Military Activity",
         "shipTraffic": "Ship Traffic",
-        "flightDelays": "Flight Delays",
+        "flightDelays": "Flights to Cuba",
         "protests": "Protests",
         "ucdpEvents": "UCDP Events",
         "displacementFlows": "Displacement Flows",
@@ -696,7 +696,7 @@
           "infraPipelinesFull": "Oil/gas pipelines (Nord Stream, TAPI, etc.)",
           "infraDatacentersFull": "AI compute clusters >=10,000 GPUs only",
           "transportShipping": "Vessels, chokepoints, 61 strategic ports",
-          "transportDelays": "Airport delays and ground stops (FAA)",
+          "transportDelays": "Air route trajectories and corridors into Cuban airports",
           "naturalEventsFull": "Earthquakes (USGS) + storms, fires, volcanoes, floods (NASA EONET)",
           "waterwaysLabels": "Strategic chokepoint labels"
         },

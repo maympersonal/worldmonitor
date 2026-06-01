@@ -36,6 +36,8 @@ import type {
   MapTechEventCluster,
   MapDatacenterCluster,
   CyberThreat,
+  FlightRoute,
+  FlightRouteEndpoint,
 } from '@/types';
 import { ArcLayer } from '@deck.gl/layers';
 import { HeatmapLayer } from '@deck.gl/aggregation-layers';
@@ -69,6 +71,8 @@ import {
   CENTRAL_BANKS,
   COMMODITY_HUBS,
   GULF_INVESTMENTS,
+  CUBA_FLIGHT_ROUTES,
+  CUBA_FLIGHT_AIRPORTS,
 } from '@/config';
 import type { GulfInvestment } from '@/types';
 import { MapPopup, type PopupType } from './MapPopup';
@@ -1007,7 +1011,6 @@ export class DeckGLMap {
     const filteredWeatherAlerts = this.filterByTime(this.weatherAlerts, (alert) => alert.onset);
     const filteredOutages = this.filterByTime(this.outages, (outage) => outage.pubDate);
     const filteredCableAdvisories = this.filterByTime(this.cableAdvisories, (advisory) => advisory.reported);
-    const filteredFlightDelays = this.filterByTime(this.flightDelays, (delay) => delay.updatedAt);
     const filteredMilitaryFlights = this.filterByTime(this.militaryFlights, (flight) => flight.lastSeen);
     const filteredMilitaryVessels = this.filterByTime(this.militaryVessels, (vessel) => vessel.lastAisUpdate);
     const filteredMilitaryFlightClusters = this.filterMilitaryFlightClustersByTime(this.militaryFlightClusters);
@@ -1124,9 +1127,11 @@ export class DeckGLMap {
       layers.push(this.createRepairShipsLayer());
     }
 
-    // Flight delays layer
-    if (mapLayers.flights && filteredFlightDelays.length > 0) {
-      layers.push(this.createFlightDelaysLayer(filteredFlightDelays));
+    // Cuba flight route trajectories
+    if (mapLayers.flights) {
+      layers.push(this.createCubaFlightRoutesLayer());
+      layers.push(this.createCubaFlightAirportsLayer());
+      layers.push(this.createCubaFlightRouteLabelsLayer());
     }
 
     // Protests layer (Supercluster-based deck.gl layers)
@@ -1451,24 +1456,73 @@ export class DeckGLMap {
     });
   }
 
-  private createFlightDelaysLayer(delays: AirportDelayAlert[]): ScatterplotLayer {
-    return new ScatterplotLayer({
-      id: 'flight-delays-layer',
-      data: delays,
-      getPosition: (d) => [d.lon, d.lat],
-      getRadius: (d) => {
-        if (d.severity === 'GDP') return 15000; // Ground Delay Program
-        if (d.severity === 'GS') return 12000; // Ground Stop
-        return 8000;
-      },
-      getFillColor: (d) => {
-        if (d.severity === 'GS') return [255, 50, 50, 200] as [number, number, number, number]; // Red for ground stops
-        if (d.severity === 'GDP') return [255, 150, 0, 200] as [number, number, number, number]; // Orange for delays
-        return [255, 200, 100, 180] as [number, number, number, number]; // Yellow
-      },
-      radiusMinPixels: 4,
-      radiusMaxPixels: 15,
+  private getFlightRouteColor(route: FlightRoute, alpha = 210): [number, number, number, number] {
+    switch (route.market) {
+      case 'us': return [80, 190, 255, alpha];
+      case 'canada': return [255, 95, 95, alpha];
+      case 'europe': return [170, 130, 255, alpha];
+      case 'latin_america': return [55, 220, 150, alpha];
+      case 'caribbean': return [255, 205, 75, alpha];
+      default: return [255, 255, 255, alpha];
+    }
+  }
+
+  private getFlightRouteMidpoint(route: FlightRoute): [number, number] {
+    return [
+      (route.origin.lon + route.destination.lon) / 2,
+      (route.origin.lat + route.destination.lat) / 2,
+    ];
+  }
+
+  private createCubaFlightRoutesLayer(): ArcLayer<FlightRoute> {
+    return new ArcLayer<FlightRoute>({
+      id: 'cuba-flight-routes-layer',
+      data: CUBA_FLIGHT_ROUTES,
+      getSourcePosition: (d) => [d.origin.lon, d.origin.lat],
+      getTargetPosition: (d) => [d.destination.lon, d.destination.lat],
+      getSourceColor: (d) => this.getFlightRouteColor(d, 90),
+      getTargetColor: (d) => this.getFlightRouteColor(d, 235),
+      getWidth: (d) => (d.priority === 1 ? 4 : d.priority === 2 ? 2.7 : 1.8),
+      greatCircle: true,
+      numSegments: 64,
       pickable: true,
+    });
+  }
+
+  private createCubaFlightAirportsLayer(): ScatterplotLayer<FlightRouteEndpoint> {
+    return new ScatterplotLayer<FlightRouteEndpoint>({
+      id: 'cuba-flight-airports-layer',
+      data: CUBA_FLIGHT_AIRPORTS,
+      getPosition: (d) => [d.lon, d.lat],
+      getRadius: (d) => d.country === 'Cuba' ? 32000 : 18000,
+      getFillColor: (d) => d.country === 'Cuba'
+        ? [255, 120, 40, 235] as [number, number, number, number]
+        : [90, 190, 255, 175] as [number, number, number, number],
+      getLineColor: [255, 255, 255, 210],
+      lineWidthMinPixels: 1,
+      stroked: true,
+      radiusMinPixels: 3,
+      radiusMaxPixels: 10,
+      pickable: true,
+    });
+  }
+
+  private createCubaFlightRouteLabelsLayer(): TextLayer<FlightRoute> {
+    const zoom = this.maplibreMap?.getZoom() || 2;
+    const data = CUBA_FLIGHT_ROUTES.filter((route) => route.priority === 1 || (zoom >= 3 && route.priority === 2));
+    return new TextLayer<FlightRoute>({
+      id: 'cuba-flight-route-labels-layer',
+      data,
+      getPosition: (d) => this.getFlightRouteMidpoint(d),
+      getText: (d) => `${d.origin.iata}->${d.destination.iata}`,
+      getSize: 12,
+      getColor: getCurrentTheme() === 'light'
+        ? [35, 45, 60, 220] as [number, number, number, number]
+        : [245, 250, 255, 220] as [number, number, number, number],
+      getTextAnchor: 'middle',
+      getAlignmentBaseline: 'center',
+      billboard: true,
+      pickable: false,
     });
   }
 
@@ -2490,8 +2544,10 @@ export class DeckGLMap {
         const typeIcon = obj.type === 'naval' ? '⚓' : obj.type === 'oil' || obj.type === 'lng' ? '🛢️' : '🏭';
         return { html: `<div class="deckgl-tooltip"><strong>${typeIcon} ${text(obj.name)}</strong><br/>${text(obj.type || t('components.deckgl.tooltip.port'))} - ${text(obj.country)}</div>` };
       }
-      case 'flight-delays-layer':
-        return { html: `<div class="deckgl-tooltip"><strong>${text(obj.airport)}</strong><br/>${text(obj.severity)}: ${text(obj.reason)}</div>` };
+      case 'cuba-flight-routes-layer':
+        return { html: `<div class="deckgl-tooltip"><strong>${text(obj.origin?.city)} -> ${text(obj.destination?.city)}</strong><br/>${text(obj.origin?.iata)} to ${text(obj.destination?.iata)}<br/>${text(obj.note || '')}</div>` };
+      case 'cuba-flight-airports-layer':
+        return { html: `<div class="deckgl-tooltip"><strong>${text(obj.iata)} - ${text(obj.city)}</strong><br/>${text(obj.name)}<br/>${text(obj.country)}</div>` };
       case 'apt-groups-layer':
         return { html: `<div class="deckgl-tooltip"><strong>${text(obj.name)}</strong><br/>${text(obj.aka)}<br/>${t('popups.sponsor')}: ${text(obj.sponsor)}</div>` };
       case 'minerals-layer':
@@ -2691,7 +2747,6 @@ export class DeckGLMap {
       'commodity-hubs-layer': 'commodityHub',
       'spaceports-layer': 'spaceport',
       'ports-layer': 'port',
-      'flight-delays-layer': 'flight',
       'startup-hubs-layer': 'startupHub',
       'tech-hqs-layer': 'techHQ',
       'accelerators-layer': 'accelerator',

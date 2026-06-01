@@ -575,7 +575,7 @@
         "pipelines": "خطوط أنابيب",
         "militaryActivity": "نشاط عسكري",
         "shipTraffic": "حركة السفن",
-        "flightDelays": "تأخيرات الرحلات",
+        "flightDelays": "رحلات إلى كوبا",
         "protests": "احتجاجات",
         "ucdpEvents": "أحداث UCDP",
         "displacementFlows": "تدفقات النزوح",
@@ -676,7 +676,7 @@
           "infraPipelinesFull": "أنابيب نفط/غاز (Nord Stream، TAPI، إلخ.)",
           "infraDatacentersFull": "مجموعات حوسبة AI بـ 10,000+ GPU فقط",
           "transportShipping": "سفن ونقاط اختناق و61 ميناءً استراتيجياً",
-          "transportDelays": "تأخيرات المطارات والتوقفات الأرضية (FAA)",
+          "transportDelays": "مسارات وممرات جوية باتجاه مطارات كوبا",
           "naturalEventsFull": "زلازل (USGS) + عواصف وحرائق وبراكين وفيضانات (NASA EONET)",
           "waterwaysLabels": "تسميات نقاط الاختناق الاستراتيجية"
         },

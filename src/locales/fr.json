@@ -575,7 +575,7 @@
         "pipelines": "OLÉODUCS ET GAZODUCS",
         "militaryActivity": "Activité militaire",
         "shipTraffic": "Trafic maritime",
-        "flightDelays": "Retards de vols",
+        "flightDelays": "Vols vers Cuba",
         "protests": "Manifestations",
         "ucdpEvents": "Événements UCDP",
         "displacementFlows": "Flux de déplacement",
@@ -676,7 +676,7 @@
           "infraPipelinesFull": "Oléoducs/gazoducs (Nord Stream, TAPI, etc.)",
           "infraDatacentersFull": "Clusters de calcul IA >=10 000 GPU uniquement",
           "transportShipping": "Navires, points d'étranglement, 61 ports stratégiques",
-          "transportDelays": "Retards à l'aéroport et arrêts au sol (FAA)",
+          "transportDelays": "Trajectoires et corridors aeriens vers les aeroports cubains",
           "naturalEventsFull": "Tremblements de terre (USGS) + tempêtes, incendies, volcans, inondations (NASA EONET)",
           "waterwaysLabels": "Étiquettes de points d'étranglement stratégiques"
         },

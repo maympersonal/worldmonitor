@@ -322,6 +322,15 @@ export class App {
       }
     }
 
+    if (currentVariant === 'full') {
+      const FLIGHTS_LAYER_MIGRATION_KEY = 'worldmonitor-full-flights-layer-v1';
+      if (!localStorage.getItem(FLIGHTS_LAYER_MIGRATION_KEY)) {
+        this.mapLayers.flights = true;
+        saveToStorage(STORAGE_KEYS.mapLayers, this.mapLayers);
+        localStorage.setItem(FLIGHTS_LAYER_MIGRATION_KEY, 'done');
+      }
+    }
+
     const forcedDisabledPanels = [
       'insights',
       'strategic-posture',
@@ -768,7 +777,7 @@ export class App {
       }
 
       // Load data when layer is enabled (if not already loaded)
-      if (enabled) {
+      if (enabled && !(SITE_VARIANT === 'full' && layer === 'flights')) {
         this.loadDataForLayer(layer);
       }
     });
@@ -3185,7 +3194,7 @@ export class App {
     if (this.mapLayers.weather) tasks.push({ name: 'weather', task: runGuarded('weather', () => this.loadWeatherAlerts()) });
     if (this.mapLayers.ais) tasks.push({ name: 'ais', task: runGuarded('ais', () => this.loadAisSignals()) });
     if (this.mapLayers.cables) tasks.push({ name: 'cables', task: runGuarded('cables', () => this.loadCableActivity()) });
-    if (this.mapLayers.flights) tasks.push({ name: 'flights', task: runGuarded('flights', () => this.loadFlightDelays()) });
+    if (SITE_VARIANT !== 'full' && this.mapLayers.flights) tasks.push({ name: 'flights', task: runGuarded('flights', () => this.loadFlightDelays()) });
     if (CYBER_LAYER_ENABLED && this.mapLayers.cyberThreats) tasks.push({ name: 'cyberThreats', task: runGuarded('cyberThreats', () => this.loadCyberThreats()) });
     if (this.mapLayers.techEvents || SITE_VARIANT === 'tech') tasks.push({ name: 'techEvents', task: runGuarded('techEvents', () => this.loadTechEvents()) });
 
@@ -3241,7 +3250,11 @@ export class App {
             await this.loadProtests();
             break;
           case 'flights':
-            await this.loadFlightDelays();
+            if (SITE_VARIANT === 'full') {
+              this.map?.setLayerReady('flights', true);
+            } else {
+              await this.loadFlightDelays();
+            }
             break;
           case 'military':
             await this.loadMilitary();
@@ -4734,7 +4747,7 @@ export class App {
     // this.scheduleRefresh('firms', () => this.loadFirmsData(), 30 * 60 * 1000);
     this.scheduleRefresh('ais', () => this.loadAisSignals(), REFRESH_INTERVALS.ais, () => this.mapLayers.ais);
     this.scheduleRefresh('cables', () => this.loadCableActivity(), 30 * 60 * 1000, () => this.mapLayers.cables);
-    this.scheduleRefresh('flights', () => this.loadFlightDelays(), 10 * 60 * 1000, () => this.mapLayers.flights);
+    this.scheduleRefresh('flights', () => this.loadFlightDelays(), 10 * 60 * 1000, () => SITE_VARIANT !== 'full' && this.mapLayers.flights);
     this.scheduleRefresh('cyberThreats', () => {
       this.cyberThreatsCache = null;
       return this.loadCyberThreats();

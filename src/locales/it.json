@@ -478,7 +478,7 @@
         "pipelines": "Condotte",
         "militaryActivity": "Attività militare",
         "shipTraffic": "Traffico navale",
-        "flightDelays": "Ritardi voli",
+        "flightDelays": "Voli per Cuba",
         "protests": "Proteste",
         "ucdpEvents": "Eventi UCDP",
         "displacementFlows": "Flussi di sfollamento",
@@ -581,7 +581,7 @@
           "infraPipelinesFull": "Oleodotti/gasdotti (Nord Stream, TAPI, ecc.)",
           "infraDatacentersFull": "Solo cluster di elaborazione AI >=10.000 GPU",
           "transportShipping": "Navi, punti di strozzatura, 61 porti strategici",
-          "transportDelays": "Ritardi aeroportuali e fermi a terra (FAA)",
+          "transportDelays": "Traiettorie e corridoi aerei verso gli aeroporti cubani",
           "naturalEventsFull": "Terremoti (USGS) + tempeste, incendi, vulcani, inondazioni (NASA EONET)",
           "waterwaysLabels": "Etichette di colli di bottiglia strategici"
         },
