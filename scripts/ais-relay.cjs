@@ -1002,6 +1002,7 @@ setInterval(() => {
 // CORS origin allowlist — only our domains can use this relay
 const ALLOWED_ORIGINS = [
   'https://worldmonitor.app',
+  'https://ottc.uh.cu',
   'https://tech.worldmonitor.app',
   'https://finance.worldmonitor.app',
   'http://localhost:5173',   // Vite dev
