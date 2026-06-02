@@ -72,6 +72,7 @@ export { GAMMA_IRRADIATORS } from './irradiators';
 export { PIPELINES, PIPELINE_COLORS } from './pipelines';
 export { PORTS } from './ports';
 export { MONITORED_AIRPORTS, FAA_AIRPORTS } from './airports';
+export { CUBA_FLIGHT_ROUTES, CUBA_FLIGHT_AIRPORTS } from './flight-routes';
 export {
   ENTITY_REGISTRY,
   getEntityById,

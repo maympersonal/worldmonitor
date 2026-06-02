@@ -6,7 +6,7 @@ import { isMobileDevice } from '@/utils';
 import type { NewsItem } from '@/types';
 
 export class CubaBriefPanel extends Panel {
-  private static readonly BRIEF_CACHE_KEY = 'summary:cuba-brief';
+  private static readonly BRIEF_CACHE_KEY = 'summary:cuba-tourism-brief';
   private static readonly BRIEF_COOLDOWN_MS = 120000;
   private static readonly MAX_VISIBLE_SOURCES = 8;
 
@@ -19,7 +19,7 @@ export class CubaBriefPanel extends Panel {
   constructor() {
     super({
       id: 'cuba-brief',
-      title: 'Situacion Actual en Cuba',
+      title: 'Situación Turística en Cuba',
       showCount: false,
     });
 
@@ -85,14 +85,14 @@ export class CubaBriefPanel extends Panel {
       return;
     }
 
-    this.setContent('<div class="insights-empty">Generating Cuba summary...</div>');
+    this.setContent('<div class="insights-empty">Generando resumen turístico de Cuba...</div>');
 
     const cubaContext = [
       'FOCUS COUNTRY: Cuba.',
-      'Summarize only developments directly tied to Cuba.',
-      'Return exactly one short paragraph in Spanish describing the current situation in Cuba.',
-      'Prioritize domestic politics, economy, infrastructure, migration, energy, telecommunications, and public services.',
-      'Ignore unrelated regional stories unless Cuba is central to the event.',
+      'Summarize only tourism, travel, hospitality, cultural tourism, flights, cruises, destinations, visitor demand, travel costs, infrastructure, and tourism policy developments directly tied to Cuba.',
+      'Return exactly one short paragraph in Spanish describing the current tourism situation in Cuba.',
+      'Prioritize practical implications for visitors, tour operators, hotels, airlines, cultural venues, and provincial destinations.',
+      'Ignore unrelated political, economic, or regional stories unless they directly affect tourism in Cuba.',
       'Do not use bullet points, headings, or multiple paragraphs.',
     ].join(' ');
 
@@ -141,7 +141,7 @@ export class CubaBriefPanel extends Panel {
 
     if (this.cubaNews.length === 0) {
       this.setDataBadge('unavailable');
-      this.setContent('<div class="insights-empty">Esperando noticias de Cuba...</div>');
+      this.setContent('<div class="insights-empty">Esperando noticias turísticas de Cuba...</div>');
       return;
     }
 
@@ -159,7 +159,7 @@ export class CubaBriefPanel extends Panel {
 
     this.setContent(`
       <div class="cuba-brief-panel">
-        <p class="cuba-brief-paragraph">${this.cubaBrief ? escapeHtml(this.cubaBrief) : 'Generando resumen de la situacion actual en Cuba...'}</p>
+        <p class="cuba-brief-paragraph">${this.cubaBrief ? escapeHtml(this.cubaBrief) : 'Generando resumen de la situación turística en Cuba...'}</p>
         ${sourcesHtml}
       </div>
     `);

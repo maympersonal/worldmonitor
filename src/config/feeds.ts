@@ -12,8 +12,6 @@ const railwayBaseUrl = wsRelayUrl
   : '';
 const railwayRss = (url: string) =>
   railwayBaseUrl ? `${railwayBaseUrl}/rss?url=${encodeURIComponent(url)}` : rss(url);
-const railwayRssStrict = (url: string) =>
-  railwayBaseUrl ? `${railwayBaseUrl}/rss?url=${encodeURIComponent(url)}` : '';
 const googleNewsRss = (
   query: string,
   hl = 'en-US',
@@ -401,10 +399,7 @@ interface CubaProvinceFeedDefinition {
   key: string;
   panelName: string;
   terms: string[];
-  provincialOutlet?: {
-    name: string;
-    url: string;
-  };
+  destinationTerms?: string[];
 }
 
 const CUBA_PROVINCE_FEED_DEFINITIONS: CubaProvinceFeedDefinition[] = [
@@ -412,110 +407,117 @@ const CUBA_PROVINCE_FEED_DEFINITIONS: CubaProvinceFeedDefinition[] = [
     key: 'pinarDelRio',
     panelName: 'Pinar del Río',
     terms: ['"Pinar del Río"', '"Pinar del Rio"'],
-    provincialOutlet: { name: 'Guerrillero (Pinar del Río)', url: 'https://www.guerrillero.cu' },
+    destinationTerms: ['Viñales', 'Vinales', '"Valle de Viñales"', '"Valle de Vinales"', '"Cayo Jutías"', '"Cayo Jutias"', '"Cayo Levisa"', '"Soroa"'],
   },
-  { key: 'artemisa', panelName: 'Artemisa', terms: ['Artemisa'] },
-  { key: 'laHabana', panelName: 'La Habana', terms: ['"La Habana"', 'Havana'] },
+  {
+    key: 'artemisa',
+    panelName: 'Artemisa',
+    terms: ['Artemisa'],
+    destinationTerms: ['Soroa', 'Mariel', '"Las Terrazas"', '"San Antonio de los Baños"', '"San Antonio de los Banos"'],
+  },
+  {
+    key: 'laHabana',
+    panelName: 'La Habana',
+    terms: ['"La Habana"', 'Havana'],
+    destinationTerms: ['"Habana Vieja"', '"Old Havana"', 'Vedado', 'Malecon', 'Malecón', '"Playas del Este"', '"Fusterlandia"'],
+  },
   {
     key: 'islaDeLaJuventud',
     panelName: 'Isla de la Juventud',
     terms: ['"Isla de la Juventud"', '"Nueva Gerona"'],
-    provincialOutlet: { name: 'Periódico Victoria (Isla de la Juventud)', url: 'https://www.periodicovictoria.cu' },
+    destinationTerms: ['"Cayo Largo"', '"Punta Frances"', '"Punta Francés"', '"Playa Bibijagua"', '"Colony Hotel"'],
   },
-  { key: 'mayabeque', panelName: 'Mayabeque', terms: ['Mayabeque'] },
+  {
+    key: 'mayabeque',
+    panelName: 'Mayabeque',
+    terms: ['Mayabeque'],
+    destinationTerms: ['Jibacoa', '"Santa Cruz del Norte"', '"Escaleras de Jaruco"', '"Playa Jibacoa"'],
+  },
   {
     key: 'matanzas',
     panelName: 'Matanzas',
     terms: ['Matanzas'],
-    provincialOutlet: { name: 'Girón (Matanzas)', url: 'https://giron.cu' },
+    destinationTerms: ['Varadero', '"Cienaga de Zapata"', '"Ciénaga de Zapata"', '"Bahía de Cochinos"', '"Bay of Pigs"', '"Playa Giron"', '"Playa Girón"'],
   },
   {
     key: 'cienfuegos',
     panelName: 'Cienfuegos',
     terms: ['Cienfuegos'],
-    provincialOutlet: { name: '5 de Septiembre (Cienfuegos)', url: 'https://www.5septiembre.cu' },
+    destinationTerms: ['"Punta Gorda"', '"Jardín Botánico de Cienfuegos"', '"Jardin Botanico de Cienfuegos"', '"El Nicho"', '"Bahía de Cienfuegos"'],
   },
   {
     key: 'villaClara',
     panelName: 'Villa Clara',
     terms: ['"Villa Clara"'],
-    provincialOutlet: { name: 'Vanguardia (Villa Clara)', url: 'https://www.vanguardia.cu' },
+    destinationTerms: ['"Cayo Santa María"', '"Cayo Santa Maria"', '"Cayo Las Brujas"', '"Cayo Ensenachos"', '"Santa Clara"', '"Remedios"'],
   },
   {
     key: 'sanctiSpiritus',
     panelName: 'Sancti Spíritus',
     terms: ['"Sancti Spíritus"', '"Sancti Spiritus"'],
-    provincialOutlet: { name: 'Escambray (Sancti Spíritus)', url: 'https://www.escambray.cu' },
+    destinationTerms: ['Trinidad', '"Valle de los Ingenios"', '"Topes de Collantes"', '"Playa Ancón"', '"Playa Ancon"', '"Cayo Blanco"'],
   },
   {
     key: 'ciegoDeAvila',
     panelName: 'Ciego de Ávila',
     terms: ['"Ciego de Ávila"', '"Ciego de Avila"'],
-    provincialOutlet: { name: 'Invasor (Ciego de Ávila)', url: 'https://www.invasor.cu/es' },
+    destinationTerms: ['"Cayo Coco"', '"Cayo Guillermo"', '"Jardines del Rey"', 'Morón', 'Moron', '"Laguna de la Leche"'],
   },
   {
     key: 'camaguey',
     panelName: 'Camagüey',
     terms: ['Camagüey', 'Camaguey'],
-    provincialOutlet: { name: 'Adelante (Camagüey)', url: 'https://www.adelante.cu/index.php/es' },
+    destinationTerms: ['"Santa Lucía"', '"Santa Lucia"', '"Playa Santa Lucia"', 'Nuevitas', '"Centro histórico de Camagüey"', '"Centro historico de Camaguey"'],
   },
   {
     key: 'lasTunas',
     panelName: 'Las Tunas',
     terms: ['"Las Tunas"'],
-    provincialOutlet: { name: 'Periódico 26 (Las Tunas)', url: 'https://periodico26.cu/index.php/es' },
+    destinationTerms: ['"Puerto Padre"', '"Covarrubias"', '"Playa Covarrubias"', '"Chaparra"'],
   },
   {
     key: 'holguin',
     panelName: 'Holguín',
     terms: ['Holguín', 'Holguin'],
-    provincialOutlet: { name: 'Ahora (Holguín)', url: 'https://www.ahora.cu/es' },
+    destinationTerms: ['Guardalavaca', '"Playa Pesquero"', '"Gibara"', '"Banes"', '"Cayo Saetía"', '"Cayo Saetia"', '"Bahía de Naranjo"'],
   },
   {
     key: 'granma',
     panelName: 'Granma',
     terms: ['Granma'],
-    provincialOutlet: { name: 'La Demajagua (Granma)', url: 'https://lademajagua.cu' },
+    destinationTerms: ['Bayamo', 'Manzanillo', '"Sierra Maestra"', '"Marea del Portillo"', '"La Demajagua"', 'Pilón', 'Pilon'],
   },
   {
     key: 'santiagoDeCuba',
     panelName: 'Santiago de Cuba',
     terms: ['"Santiago de Cuba"'],
-    provincialOutlet: { name: 'Sierra Maestra (Santiago de Cuba)', url: 'https://www.sierramaestra.cu' },
+    destinationTerms: ['"Castillo del Morro"', '"Cementerio Santa Ifigenia"', '"Gran Piedra"', '"Parque Baconao"', '"Carnaval de Santiago"'],
   },
   {
     key: 'guantanamo',
     panelName: 'Guantánamo',
     terms: ['Guantánamo', 'Guantanamo'],
-    provincialOutlet: { name: 'Venceremos (Guantánamo)', url: 'https://www.venceremos.cu' },
+    destinationTerms: ['Baracoa', 'Maisí', 'Maisi', '"Yunque de Baracoa"', '"Alejandro de Humboldt"', '"Playa Maguana"'],
   },
 ];
 
+const CUBA_TOURISM_TOPIC_QUERY =
+  '(turismo OR turistico OR turistica OR turistas OR visitante OR visitantes OR hotel OR hoteles OR resort OR playa OR playas OR patrimonio OR festival OR cultura OR vuelo OR vuelos OR aeropuerto OR crucero OR cruceros OR marina OR alojamiento OR gastronomia OR ecoturismo OR travel OR tourism OR tourist OR visitors OR beach OR heritage OR flight OR airport OR cruise)';
+
 const CUBA_PROVINCIAL_FEEDS: Record<string, Feed[]> = Object.fromEntries(
-  CUBA_PROVINCE_FEED_DEFINITIONS.map(({ key, panelName, terms, provincialOutlet }) => {
+  CUBA_PROVINCE_FEED_DEFINITIONS.map(({ key, panelName, terms, destinationTerms = [] }) => {
     const provinceTextFilterId = key.replace(/([a-z])([A-Z])/g, '$1-$2').toLowerCase();
-    const locationQuery = terms.join(' OR ');
-    const queryRecent = `(${locationQuery}) AND (Cuba OR cubano OR cubana OR Habana OR Havana) when:10d`;
-    const queryExtended = `(${locationQuery}) AND (Cuba OR cubano OR cubana OR Habana OR Havana) when:30d`;
-    const provinceNewsUrl = googleNewsRssPlain(queryRecent, 'es-419', 'US', 'US:es-419');
-    const provinceNewsFallbackUrl = googleNewsRssPlain(queryExtended, 'es-419', 'US', 'US:es-419');
-    const provinceFeeds: Feed[] = [];
+    const locationQuery = Array.from(new Set([...terms, ...destinationTerms])).join(' OR ');
+    const tourismRecentQuery = `(${locationQuery} ${CUBA_TOURISM_TOPIC_QUERY}) when:7d`;
 
-    if (provincialOutlet) {
-      provinceFeeds.push({
-        name: provincialOutlet.name,
-        url: railwayRss(provincialOutlet.url),
-        fallbackUrls: [provinceNewsUrl, provinceNewsFallbackUrl],
+    const provinceFeeds: Feed[] = [
+      {
+        name: `${panelName} Turismo 7d`,
+        url: googleNewsRssPlain(tourismRecentQuery, 'es-419', 'US', 'US:es-419'),
         provinceTextFilterId,
-      });
-    }
-
-    provinceFeeds.push({
-      name: `${panelName} Noticias`,
-      url: provinceNewsUrl,
-      fallbackUrls: [provinceNewsFallbackUrl],
-      provinceTextFilterId,
-    });
+        limit: 8,
+      },
+    ];
 
     return [
       key,
@@ -526,244 +528,198 @@ const CUBA_PROVINCIAL_FEEDS: Record<string, Feed[]> = Object.fromEntries(
 
 const FULL_FEEDS: Record<string, Feed[]> = {
   politics: [
-    { name: 'BBC World', url: rss('https://feeds.bbci.co.uk/news/world/rss.xml') },
-    { name: 'NPR News', url: rss('https://feeds.npr.org/1001/rss.xml') },
-    { name: 'Guardian World', url: rss('https://www.theguardian.com/world/rss') },
-    { name: 'AP News', url: rss('https://news.google.com/rss/search?q=site:apnews.com&hl=en-US&gl=US&ceid=US:en') },
-    { name: 'Reuters World', url: rss('https://news.google.com/rss/search?q=site:reuters.com+world&hl=en-US&gl=US&ceid=US:en') },
-    { name: 'Politico', url: rss('https://news.google.com/rss/search?q=site:politico.com+when:1d&hl=en-US&gl=US&ceid=US:en') },
-    { name: 'The Diplomat', url: rss('https://thediplomat.com/feed/') },
+    {
+      name: 'Turismo Mundial (ES)',
+      url: googleNewsRssPlain(
+        '("turismo mundial" OR "turismo internacional" OR "industria turistica" OR "viajes internacionales" OR "llegadas de turistas" OR "demanda turistica" OR aerolineas OR hoteles OR cruceros) when:7d',
+        'es-419',
+        'US',
+        'US:es-419',
+      ),
+    },
+    {
+      name: 'Global Tourism (EN)',
+      url: googleNewsRssPlain(
+        '("global tourism" OR "international tourism" OR "travel industry" OR "tourist arrivals" OR "hotel occupancy" OR airlines OR cruises OR destinations) when:7d',
+        'en-US',
+        'US',
+        'US:en',
+      ),
+    },
+    {
+      name: 'UN Tourism',
+      url: googleNewsRssPlain(
+        '(site:unwto.org OR "UN Tourism" OR UNWTO) AND (tourism OR travel OR destination OR arrivals OR sustainability) when:14d',
+        'en-US',
+        'US',
+        'US:en',
+      ),
+    },
+    {
+      name: 'WTTC',
+      url: googleNewsRssPlain(
+        '(site:wttc.org OR "World Travel and Tourism Council" OR WTTC) AND (tourism OR travel OR economy OR jobs OR investment) when:14d',
+        'en-US',
+        'US',
+        'US:en',
+      ),
+    },
   ],
   middleeast: [
-    { name: 'BBC Middle East', url: rss('https://feeds.bbci.co.uk/news/world/middle_east/rss.xml') },
-    { name: 'Al Jazeera', url: rss('https://www.aljazeera.com/xml/rss/all.xml') },
-    // AlArabiya blocks cloud IPs (Cloudflare), use Google News fallback
-    { name: 'Al Arabiya', url: rss('https://news.google.com/rss/search?q=site:english.alarabiya.net+when:2d&hl=en-US&gl=US&ceid=US:en') },
-    // Arab News and Times of Israel removed — 403 from cloud IPs
-    { name: 'Guardian ME', url: rss('https://www.theguardian.com/world/middleeast/rss') },
-    { name: 'CNN World', url: rss('http://rss.cnn.com/rss/cnn_world.rss') },
-    { name: 'BBC Persian', url: rss('http://feeds.bbci.co.uk/persian/tv-and-radio-37434376/rss.xml') },
-    { name: 'Iran International', url: rss('https://news.google.com/rss/search?q=site:iranintl.com+when:2d&hl=en-US&gl=US&ceid=US:en') },
-    { name: 'Fars News', url: rss('https://news.google.com/rss/search?q=site:farsnews.ir+when:2d&hl=en-US&gl=US&ceid=US:en') },
+    {
+      name: 'Turismo MENA',
+      url: googleNewsRssPlain(
+        '("Middle East tourism" OR "MENA tourism" OR Dubai OR Abu Dhabi OR Saudi OR Qatar OR Egypt OR Jordan OR Morocco) AND (tourism OR travel OR hotel OR airline OR cruise OR destination) when:7d',
+        'en-US',
+        'US',
+        'US:en',
+      ),
+    },
+    {
+      name: 'Golfo y Turismo',
+      url: googleNewsRssPlain(
+        '(Dubai OR "Abu Dhabi" OR "Saudi Arabia" OR Qatar OR Oman OR Bahrain) AND (tourism OR travel OR hotel OR resort OR airport OR airline OR cruise OR "Vision 2030") when:7d',
+        'en-US',
+        'US',
+        'US:en',
+      ),
+    },
+    {
+      name: 'Turismo Norte de Africa',
+      url: googleNewsRssPlain(
+        '(Egypt OR Morocco OR Tunisia OR Algeria) AND (tourism OR travel OR hotel OR resort OR visitors OR "tourist arrivals") when:7d',
+        'en-US',
+        'US',
+        'US:en',
+      ),
+    },
   ],
   tech: [
-  {
-    name: 'Cuba Tecnologia (ES)',
-    url: googleNewsRssPlain(
-      '(Cuba OR Habana OR cubano OR cubana) AND (tecnologia OR digitalizacion OR software OR "transformacion digital" OR innovacion) when:7d',
-      'es-419', 'US', 'US:es-419'
-    ),
-  },
-  {
-    name: 'Cuba Technology (EN)',
-    url: googleNewsRssPlain(
-      '(Cuba OR Habana OR cuban) AND (technology OR digitalization OR software OR "digital transformation" OR innovation) when:7d', // ✅ corregido
-      'en-US', 'US', 'US:en'
-    ),
-  },
-  {
-    name: 'Cuba Telecom (ES)',
-    url: googleNewsRssPlain(
-      '(Cuba OR ETECSA OR "Ministerio de Comunicaciones") AND (internet OR conectividad OR banda ancha OR 4G OR 5G OR fibra OR "datos moviles") when:7d',
-      'es-419', 'US', 'US:es-419'
-    ),
-  },
-  {
-    name: 'Cuba Telecom (EN)',
-    url: googleNewsRssPlain(
-      '(Cuba OR ETECSA OR "Ministry of Communications") AND (internet OR connectivity OR broadband OR 4G OR 5G OR fiber OR "mobile data") when:7d',
-      'en-US', 'US', 'US:en'
-    ),
-  },
-],
+    {
+      name: 'Tecnología Turística (ES)',
+      url: googleNewsRssPlain(
+        '("tecnologia turistica" OR traveltech OR "turismo inteligente" OR "hotel tech" OR "reservas online" OR "check-in digital" OR "pagos digitales" OR "experiencia del viajero") when:7d',
+        'es-419',
+        'US',
+        'US:es-419',
+      ),
+    },
+    {
+      name: 'Travel Technology (EN)',
+      url: googleNewsRssPlain(
+        '(traveltech OR "travel technology" OR "hotel tech" OR "smart tourism" OR "online booking" OR "digital check-in" OR "tourism platform" OR "visitor experience") when:7d',
+        'en-US',
+        'US',
+        'US:en',
+      ),
+    },
+    {
+      name: 'Cuba Travel Tech',
+      url: googleNewsRssPlain(
+        '(Cuba OR Habana OR Havana OR ETECSA OR MINTUR OR "turismo cubano") AND (internet OR conectividad OR "pagos digitales" OR reservas OR "booking" OR hotel OR "transformacion digital" OR "digital transformation" OR traveltech) when:14d',
+        'es-419',
+        'US',
+        'US:es-419',
+      ),
+    },
+    {
+      name: 'Aerolíneas y Canales Digitales',
+      url: googleNewsRssPlain(
+        '(airline OR aerolinea OR airport OR aeropuerto OR hotel OR resort) AND ("mobile app" OR app OR "digital booking" OR "online booking" OR "self service" OR biometrics OR biometricos) AND (tourism OR travel OR turismo) when:7d',
+        'en-US',
+        'US',
+        'US:en',
+      ),
+    },
+  ],
   ai: [
     {
-      name: 'IA en Cuba',
+      name: 'IA para Turismo (ES)',
       url: googleNewsRssPlain(
-        '(Cuba OR Habana OR cubano OR cubana) AND ("inteligencia artificial" OR IA OR "aprendizaje automatico" OR "machine learning" OR "IA generativa" OR ChatGPT OR "modelo de lenguaje" OR LLM) when:7d',
+        '("inteligencia artificial" OR IA OR "machine learning" OR "IA generativa" OR ChatGPT OR "modelo de lenguaje" OR LLM) AND (turismo OR hotel OR hoteles OR aerolinea OR aeropuerto OR viajes OR visitantes OR destinos) when:7d',
         'es-419',
         'US',
         'US:es-419',
       ),
-      fallbackUrls: [
-        googleNewsRssPlain(
-          '(Cuba OR Habana OR cubano OR cubana) AND ("inteligencia artificial" OR IA OR "aprendizaje automatico" OR "machine learning" OR ChatGPT OR digitalizacion OR "transformacion digital" OR tecnologia) when:7d',
-          'es-419',
-          'US',
-          'US:es-419',
-        ),
-      ],
     },
     {
-      name: 'AI in Cuba (EN)',
+      name: 'AI for Travel (EN)',
       url: googleNewsRssPlain(
-        '(Cuba OR Havana OR Habana OR cuban) AND ("artificial intelligence" OR AI OR "machine learning" OR "generative AI" OR ChatGPT OR "language model" OR LLM) when:7d',
+        '("artificial intelligence" OR AI OR "machine learning" OR "generative AI" OR ChatGPT OR "language model" OR LLM) AND (tourism OR travel OR hotel OR airline OR airport OR destination OR visitor) when:7d',
         'en-US',
         'US',
         'US:en',
       ),
-      fallbackUrls: [
-        googleNewsRssPlain(
-          '(Cuba OR Havana OR Habana OR cuban) AND ("artificial intelligence" OR AI OR "machine learning" OR ChatGPT OR digitalization OR "digital transformation" OR technology) when:7d',
-          'en-US',
-          'US',
-          'US:en',
-        ),
-      ],
     },
     {
-      name: 'Política de IA (Cuba)',
+      name: 'IA Turística Cuba',
       url: googleNewsRssPlain(
-        '(Cuba OR Habana OR Havana OR MINCOM OR CITMA OR "gobierno cubano") AND ("inteligencia artificial" OR IA OR digitalizacion OR "transformacion digital" OR "machine learning" OR ChatGPT OR "artificial intelligence") when:7d',
+        '(Cuba OR Habana OR Havana OR MINTUR OR "turismo cubano" OR hotel OR hoteles) AND ("inteligencia artificial" OR IA OR "machine learning" OR ChatGPT OR "analitica de datos" OR "experiencia del viajero" OR "transformacion digital") when:14d',
         'es-419',
         'US',
         'US:es-419',
       ),
-      fallbackUrls: [
-        googleNewsRssPlain(
-          '(Cuba OR Habana OR Havana OR MINCOM OR CITMA OR "gobierno cubano") AND (digitalizacion OR "transformacion digital" OR tecnologia OR conectividad OR "inteligencia artificial" OR IA) when:7d',
-          'es-419',
-          'US',
-          'US:es-419',
-        ),
-      ],
     },
     {
-      name: 'Cuban AI Policy (EN)',
+      name: 'Tourism Data Platforms',
       url: googleNewsRssPlain(
-        '(Cuba OR Havana OR Habana OR "Cuban government" OR MINCOM OR CITMA) AND ("artificial intelligence" OR AI OR digitalization OR "digital transformation" OR "machine learning" OR ChatGPT) when:7d',
+        '("tourism data" OR "travel data" OR "hotel analytics" OR "destination intelligence" OR "revenue management" OR "dynamic pricing") AND (AI OR "artificial intelligence" OR analytics OR platform) when:7d',
         'en-US',
         'US',
         'US:en',
       ),
-      fallbackUrls: [
-        googleNewsRssPlain(
-          '(Cuba OR Havana OR Habana OR "Cuban government" OR MINCOM OR CITMA) AND (digitalization OR "digital transformation" OR technology OR connectivity OR "artificial intelligence" OR AI) when:7d',
-          'en-US',
-          'US',
-          'US:en',
-        ),
-      ],
     },
-    {
-      name: 'Infraestructura IA Cuba',
-      url: googleNewsRssPlain(
-        '(Cuba OR Habana OR Havana OR ETECSA) AND ("inteligencia artificial" OR IA OR "centro de datos" OR nube OR "computacion" OR servidores OR GPU OR "fibra optica" OR conectividad OR digitalizacion OR "artificial intelligence" OR AI OR "data center" OR cloud OR connectivity) when:7d',
-        'es-419',
-        'US',
-        'US:es-419',
-      ),
-      fallbackUrls: [
-        googleNewsRssPlain(
-          '(Cuba OR Habana OR Havana OR ETECSA) AND ("centro de datos" OR conectividad OR nube OR telecom OR digitalizacion OR tecnologia OR "inteligencia artificial" OR IA) when:7d',
-          'es-419',
-          'US',
-          'US:es-419',
-        ),
-      ],
-    },
-    {
-      name: 'Cuba AI Infrastructure (EN)',
-      url: googleNewsRssPlain(
-        '(Cuba OR Havana OR Habana OR ETECSA) AND ("artificial intelligence" OR AI OR "data center" OR cloud OR compute OR servers OR GPU OR "fiber optics" OR connectivity OR digitalization) when:7d',
-        'en-US',
-        'US',
-        'US:en',
-      ),
-      fallbackUrls: [
-        googleNewsRssPlain(
-          '(Cuba OR Havana OR Habana OR ETECSA) AND ("data center" OR connectivity OR cloud OR telecom OR digitalization OR technology OR "artificial intelligence" OR AI) when:7d',
-          'en-US',
-          'US',
-          'US:en',
-        ),
-      ],
-    },
-    // {
-    //   name: 'Reuters IA Cuba',
-    //   url: googleNewsRssPlain(
-    //     '((site:reuters.com) AND (Cuba OR Habana OR Havana) AND ("inteligencia artificial" OR IA OR tecnologia OR digitalizacion OR automatizacion OR "centro de datos")) when:30d',
-    //     'es-419',
-    //     'US',
-    //     'US:es-419',
-    //   ),
-    //   fallbackUrls: [
-    //     googleNewsRssPlain(
-    //       '((Cuba OR Habana OR Havana) AND ("inteligencia artificial" OR IA OR tecnologia OR digitalizacion OR conectividad)) when:30d',
-    //       'es-419',
-    //       'US',
-    //       'US:es-419',
-    //     ),
-    //   ],
-    // },
-    // {
-    //   name: 'Reuters AI Cuba (EN)',
-    //   url: googleNewsRssPlain(
-    //     '((site:reuters.com) AND (Cuba OR Havana OR Habana) AND ("artificial intelligence" OR AI OR technology OR "digital transformation" OR automation OR telecom OR "data center")) when:30d',
-    //     'en-US',
-    //     'US',
-    //     'US:en',
-    //   ),
-    //   fallbackUrls: [
-    //     googleNewsRssPlain(
-    //       '((Cuba OR Havana OR Habana) AND ("artificial intelligence" OR AI OR technology OR digitalization OR connectivity)) when:30d',
-    //       'en-US',
-    //       'US',
-    //       'US:en',
-    //     ),
-    //   ],
-    // },
   ],
   finance: [
     {
-      name: 'Cuba Economia',
+      name: 'Economía Turística Cuba',
       url: googleNewsRssPlain(
-        '(Cuba OR Habana OR Havana) AND (economia OR finanzas OR comercio OR inversion OR inflacion OR deuda OR remesas) when:7d',
+        '(Cuba OR Habana OR Havana OR MINTUR OR "turismo cubano") AND (turismo OR hotel OR hoteles OR visitantes OR "llegadas de turistas" OR inversion OR ingresos OR ocupacion OR aerolineas OR cruceros) when:14d',
         'es-419',
         'US',
         'US:es-419',
       ),
     },
     {
-      name: 'Cuba Economy (EN)',
+      name: 'Cuba Tourism Economy (EN)',
       url: googleNewsRssPlain(
-        '(Cuba OR Havana OR Habana) AND (economy OR finance OR trade OR investment OR inflation OR debt OR remittances) when:7d',
+        '(Cuba OR Havana OR Habana OR MINTUR OR "Cuban tourism") AND (tourism OR hotel OR visitors OR "tourist arrivals" OR investment OR revenue OR occupancy OR airlines OR cruises) when:14d',
         'en-US',
         'US',
         'US:en',
       ),
     },
     {
-      name: 'Cuba Moneda',
+      name: 'Costos para Viajeros Cuba',
       url: googleNewsRssPlain(
-        '(Cuba OR Habana OR Havana) AND (peso OR CUP OR MLC OR divisa OR moneda OR "tipo de cambio") when:7d',
+        '(Cuba OR Habana OR Havana) AND (turismo OR turista OR viajeros OR visitantes) AND (peso OR CUP OR MLC OR divisa OR moneda OR "tipo de cambio" OR precios OR tarifas OR costo) when:14d',
         'es-419',
         'US',
         'US:es-419',
       ),
     },
     {
-      name: 'Cuba Currency (EN)',
+      name: 'Travel Costs Cuba (EN)',
       url: googleNewsRssPlain(
-        '(Cuba OR Havana OR Habana) AND (peso OR CUP OR MLC OR currency OR "exchange rate") when:7d',
+        '(Cuba OR Havana OR Habana) AND (tourism OR tourist OR travelers OR visitors) AND (peso OR CUP OR MLC OR currency OR "exchange rate" OR prices OR fees OR costs) when:14d',
         'en-US',
         'US',
         'US:en',
       ),
     },
     {
-      name: 'Cuba Comercio Exterior',
+      name: 'Inversión Hotelera Cuba',
       url: googleNewsRssPlain(
-        '(Cuba OR Habana OR Havana) AND (exportaciones OR importaciones OR comercio OR inversiones) when:7d',
+        '(Cuba OR Habana OR Havana OR Varadero) AND (hotel OR hoteles OR resort OR alojamiento OR inversion OR inversion extranjera OR "grupo hotelero" OR Meliá OR Melia OR Iberostar OR Gaviota) when:30d',
         'es-419',
         'US',
         'US:es-419',
       ),
     },
     {
-      name: 'Cuba Foreign Trade (EN)',
+      name: 'Hotel Investment Cuba (EN)',
       url: googleNewsRssPlain(
-        '(Cuba OR Havana OR Habana) AND (exports OR imports OR trade OR investments) when:7d',
+        '(Cuba OR Havana OR Habana OR Varadero) AND (hotel OR resort OR accommodation OR investment OR "foreign investment" OR "hotel group" OR Melia OR Iberostar OR Gaviota) when:30d',
         'en-US',
         'US',
         'US:en',
@@ -772,54 +728,54 @@ const FULL_FEEDS: Record<string, Feed[]> = {
   ],
   gov: [
     {
-      name: 'Gobierno de Cuba',
+      name: 'Política Turística Cuba',
       url: googleNewsRssPlain(
-        '(Cuba OR Habana OR Havana) AND ("gobierno cubano" OR "Consejo de Ministros" OR "Consejo de Estado" OR "Asamblea Nacional" OR "Poder Popular") when:7d',
+        '(Cuba OR Habana OR Havana OR MINTUR OR "Ministerio de Turismo") AND (turismo OR turistas OR visitantes OR hoteles OR vuelos OR visado OR visa OR regulacion OR medidas OR normas) when:14d',
         'es-419',
         'US',
         'US:es-419',
       ),
     },
     {
-      name: 'Cuban Government (EN)',
+      name: 'Cuba Tourism Policy (EN)',
       url: googleNewsRssPlain(
-        '(Cuba OR Havana OR Habana) AND ("Cuban government" OR "Council of Ministers" OR "Council of State" OR "National Assembly" OR "Peoples Power") when:7d',
+        '(Cuba OR Havana OR Habana OR MINTUR OR "Ministry of Tourism") AND (tourism OR tourists OR visitors OR hotels OR flights OR visa OR regulation OR measures OR rules) when:14d',
         'en-US',
         'US',
         'US:en',
       ),
     },
     {
-      name: 'Presidencia Cuba',
+      name: 'MINTUR Cuba',
       url: googleNewsRssPlain(
-        '(site:presidencia.gob.cu OR "Presidencia de Cuba" OR "Diaz-Canel") AND (discurso OR decreto OR reunion OR medidas) when:7d',
+        '(site:mintur.gob.cu OR MINTUR OR "Ministerio de Turismo de Cuba" OR "turismo cubano") AND (turismo OR hotel OR hoteles OR visitantes OR destinos OR feria OR FITCuba) when:30d',
         'es-419',
         'US',
         'US:es-419',
       ),
     },
     {
-      name: 'Cuban Presidency (EN)',
+      name: 'Cuba Travel Rules',
       url: googleNewsRssPlain(
-        '(site:presidencia.gob.cu OR "Presidency of Cuba" OR "Diaz-Canel") AND (speech OR decree OR meeting OR measures) when:7d',
+        '(Cuba OR Havana OR Habana) AND (travel OR tourism OR tourist OR visitor) AND (visa OR entry OR customs OR airport OR health OR regulation OR requirement) when:14d',
         'en-US',
         'US',
         'US:en',
       ),
     },
     {
-      name: 'MINREX Cuba',
+      name: 'Conectividad Aérea Cuba',
       url: googleNewsRssPlain(
-        '(site:minrex.gob.cu OR MINREX OR "Cancilleria de Cuba") AND (comunicado OR declaracion OR "politica exterior") when:7d',
+        '(Cuba OR Habana OR Havana OR Varadero) AND (vuelos OR aerolinea OR aerolineas OR aeropuerto OR ruta OR rutas OR conectividad aerea OR charter) when:14d',
         'es-419',
         'US',
         'US:es-419',
       ),
     },
     {
-      name: 'Cuban Foreign Ministry (EN)',
+      name: 'Cuba Air Connectivity (EN)',
       url: googleNewsRssPlain(
-        '(site:minrex.gob.cu OR MINREX OR "Cuban Foreign Ministry" OR "Foreign Ministry of Cuba") AND (statement OR declaration OR "foreign policy") when:7d',
+        '(Cuba OR Havana OR Habana OR Varadero) AND (flight OR flights OR airline OR airport OR route OR routes OR air connectivity OR charter) when:14d',
         'en-US',
         'US',
         'US:en',
@@ -845,36 +801,36 @@ const FULL_FEEDS: Record<string, Feed[]> = {
   ],
   culture: [
     {
-      name: 'Cultura Cubana (ES)',
+      name: 'Turismo Cultural Cuba',
       url: googleNewsRssPlain(
-        '(Cuba OR Habana OR Havana OR cubano OR cubana) AND (cultura OR arte OR musica OR cine OR literatura OR teatro OR danza OR patrimonio OR museo OR festival) when:7d',
+        '(Cuba OR Habana OR Havana OR cubano OR cubana) AND (turismo OR turistas OR visitantes OR viajes) AND (cultura OR arte OR musica OR cine OR literatura OR teatro OR danza OR patrimonio OR museo OR festival OR gastronomia) when:14d',
         'es-419',
         'US',
         'US:es-419',
       ),
     },
     {
-      name: 'Cuban Culture (EN)',
+      name: 'Cuban Cultural Tourism (EN)',
       url: googleNewsRssPlain(
-        '(Cuba OR Havana OR Habana OR cuban) AND (culture OR arts OR music OR film OR cinema OR literature OR theater OR dance OR heritage OR museum OR festival) when:7d',
+        '(Cuba OR Havana OR Habana OR cuban) AND (tourism OR tourists OR visitors OR travel) AND (culture OR arts OR music OR film OR cinema OR literature OR theater OR dance OR heritage OR museum OR festival OR gastronomy) when:14d',
         'en-US',
         'US',
         'US:en',
       ),
     },
     {
-      name: 'MINCULT Cuba',
+      name: 'Eventos y Festivales Cuba',
       url: googleNewsRssPlain(
-        '(site:mincult.gob.cu OR MINCULT OR "Ministerio de Cultura de Cuba") AND (cultura OR arte OR musica OR cine OR literatura OR teatro OR danza OR patrimonio) when:7d',
+        '(Cuba OR Habana OR Havana OR MINCULT OR "Ministerio de Cultura de Cuba") AND (festival OR feria OR carnaval OR evento OR concierto OR exposicion OR museo OR patrimonio OR turismo cultural) when:30d',
         'es-419',
         'US',
         'US:es-419',
       ),
     },
     {
-      name: 'Cuban Arts & Heritage (EN)',
+      name: 'Cuban Heritage Travel (EN)',
       url: googleNewsRssPlain(
-        '(Cuba OR Havana OR Habana OR "Ministry of Culture of Cuba" OR MINCULT) AND (arts OR culture OR music OR film OR literature OR theater OR dance OR heritage OR museum OR festival) when:7d',
+        '(Cuba OR Havana OR Habana OR "Ministry of Culture of Cuba" OR MINCULT) AND (heritage OR museum OR festival OR "cultural tourism" OR music OR arts OR gastronomy OR travel) when:30d',
         'en-US',
         'US',
         'US:en',
@@ -925,118 +881,142 @@ const FULL_FEEDS: Record<string, Feed[]> = {
     { name: 'Moscow Times', url: googleNewsRss('(site:themoscowtimes.com+OR+site:ru.themoscowtimes.com)+when:7d') },
   ],
   africa: [
-    { name: 'Africa News', url: rss('https://news.google.com/rss/search?q=(Africa+OR+Nigeria+OR+Kenya+OR+"South+Africa"+OR+Ethiopia)+when:2d&hl=en-US&gl=US&ceid=US:en') },
-    { name: 'Sahel Crisis', url: rss('https://news.google.com/rss/search?q=(Sahel+OR+Mali+OR+Niger+OR+"Burkina+Faso"+OR+Wagner)+when:3d&hl=en-US&gl=US&ceid=US:en') },
-    { name: 'News24', url: railwayRss('https://feeds.capi24.com/v1/Search/articles/news24/Africa/rss') },
-    { name: 'BBC Africa', url: rss('https://feeds.bbci.co.uk/news/world/africa/rss.xml') },
+    {
+      name: 'Turismo África',
+      url: googleNewsRssPlain(
+        '(Africa OR Nigeria OR Kenya OR "South Africa" OR Ethiopia OR Tanzania OR Morocco OR Egypt) AND (tourism OR travel OR hotel OR resort OR safari OR visitors OR "tourist arrivals") when:7d',
+        'en-US',
+        'US',
+        'US:en',
+      ),
+    },
+    {
+      name: 'Turismo África (ES)',
+      url: googleNewsRssPlain(
+        '(Africa OR Marruecos OR Egipto OR Kenia OR Tanzania OR "Sudafrica") AND (turismo OR viajes OR hotel OR hoteles OR safari OR visitantes OR "llegadas de turistas") when:7d',
+        'es-419',
+        'US',
+        'US:es-419',
+      ),
+    },
+    {
+      name: 'Safaris y Naturaleza',
+      url: googleNewsRssPlain(
+        '(Kenya OR Tanzania OR Botswana OR Namibia OR Rwanda OR Uganda OR "South Africa") AND (safari OR ecotourism OR "wildlife tourism" OR conservation OR lodge OR visitors) when:14d',
+        'en-US',
+        'US',
+        'US:en',
+      ),
+    },
   ],
   latam: [
-    { name: 'Latin America', url: rss('https://news.google.com/rss/search?q=(Brazil+OR+Mexico+OR+Argentina+OR+Venezuela+OR+Colombia)+when:2d&hl=en-US&gl=US&ceid=US:en') },
-    { name: 'BBC Latin America', url: rss('https://feeds.bbci.co.uk/news/world/latin_america/rss.xml') },
-    { name: 'Reuters LatAm', url: rss('https://news.google.com/rss/search?q=site:reuters.com+(Brazil+OR+Mexico+OR+Argentina)+when:3d&hl=en-US&gl=US&ceid=US:en') },
-    { name: 'Guardian Americas', url: rss('https://www.theguardian.com/world/americas/rss') },
     {
-      name: 'La Silla Vacía',
-      url: railwayRss('https://www.lasillavacia.com/rss'),
-      fallbackUrls: [googleNewsRss('site:lasillavacia.com+when:7d', 'es-419', 'US', 'US:es-419')],
+      name: 'Turismo América Latina',
+      url: googleNewsRssPlain(
+        '("America Latina" OR "Latin America" OR Mexico OR Brasil OR Brazil OR Argentina OR Colombia OR Peru OR Chile OR "Costa Rica" OR Caribe) AND (turismo OR travel OR hotel OR resort OR visitantes OR "llegadas de turistas" OR vuelos OR cruceros) when:7d',
+        'es-419',
+        'US',
+        'US:es-419',
+      ),
+    },
+    {
+      name: 'LATAM Tourism (EN)',
+      url: googleNewsRssPlain(
+        '("Latin America" OR Mexico OR Brazil OR Argentina OR Colombia OR Peru OR Chile OR "Costa Rica" OR Caribbean) AND (tourism OR travel OR hotel OR resort OR visitors OR "tourist arrivals" OR flights OR cruises) when:7d',
+        'en-US',
+        'US',
+        'US:en',
+      ),
+    },
+    {
+      name: 'Caribe Turismo',
+      url: googleNewsRssPlain(
+        '(Caribe OR Caribbean OR Cuba OR Jamaica OR "Dominican Republic" OR "Republica Dominicana" OR Bahamas OR Barbados) AND (turismo OR tourism OR hotel OR resort OR cruise OR crucero OR vuelos OR visitors) when:7d',
+        'es-419',
+        'US',
+        'US:es-419',
+      ),
     },
   ],
   asia: [
-    { name: 'Asia News', url: rss('https://news.google.com/rss/search?q=(China+OR+Japan+OR+Korea+OR+India+OR+ASEAN)+when:2d&hl=en-US&gl=US&ceid=US:en') },
-    { name: 'BBC Asia', url: rss('https://feeds.bbci.co.uk/news/world/asia/rss.xml') },
-    { name: 'South China Morning Post', url: railwayRss('https://www.scmp.com/rss/91/feed/') },
-    { name: 'Reuters Asia', url: rss('https://news.google.com/rss/search?q=site:reuters.com+(China+OR+Japan+OR+Taiwan+OR+Korea)+when:3d&hl=en-US&gl=US&ceid=US:en') },
     {
-      name: 'NHK World',
-      url: googleNewsRss('(site:nhk.or.jp+OR+"NHK+World")+when:7d'),
-      fallbackUrls: [railwayRssStrict('https://rsshub.app/nhk/news/en')].filter(Boolean),
-    },
-    { name: 'Nikkei Asia', url: rss('https://news.google.com/rss/search?q=site:asia.nikkei.com+when:3d&hl=en-US&gl=US&ceid=US:en') },
-    {
-      name: 'MIIT (China)',
-      url: googleNewsRss('(site:miit.gov.cn+OR+MIIT+China)+when:7d'),
-      fallbackUrls: [
-        googleNewsRss('(site:miit.gov.cn+OR+MIIT+policy+China)+when:14d'),
-        railwayRssStrict('https://rsshub.app/gov/miit/zcjd'),
-      ].filter(Boolean),
+      name: 'Turismo Asia-Pacífico',
+      url: googleNewsRssPlain(
+        '(Asia OR China OR Japan OR Korea OR India OR ASEAN OR Thailand OR Vietnam OR Indonesia OR Singapore OR "Asia Pacific") AND (tourism OR travel OR hotel OR resort OR visitors OR "tourist arrivals" OR flights) when:7d',
+        'en-US',
+        'US',
+        'US:en',
+      ),
     },
     {
-      name: 'MOFCOM (China)',
-      url: googleNewsRss('(site:mofcom.gov.cn+OR+MOFCOM+China)+when:7d'),
-      fallbackUrls: [
-        googleNewsRss('(site:mofcom.gov.cn+OR+MOFCOM+policy+China)+when:14d'),
-        railwayRssStrict('https://rsshub.app/gov/mofcom/article/xwfb'),
-      ].filter(Boolean),
+      name: 'Asia Turismo (ES)',
+      url: googleNewsRssPlain(
+        '(Asia OR China OR Japon OR Japón OR Corea OR India OR ASEAN OR Tailandia OR Vietnam OR Indonesia OR Singapur) AND (turismo OR viajes OR hotel OR hoteles OR visitantes OR "llegadas de turistas" OR vuelos) when:7d',
+        'es-419',
+        'US',
+        'US:es-419',
+      ),
+    },
+    {
+      name: 'ASEAN y Hoteles',
+      url: googleNewsRssPlain(
+        '(Thailand OR Vietnam OR Indonesia OR Malaysia OR Singapore OR Philippines OR ASEAN) AND (tourism OR hotel OR resort OR airline OR airport OR visitors OR travel) when:7d',
+        'en-US',
+        'US',
+        'US:en',
+      ),
     },
   ],
   energy: [
     {
-      name: 'Petróleo y Gas (Cuba)',
+      name: 'Infraestructura Turística Cuba',
       url: googleNewsRssPlain(
-        '(Cuba OR Habana OR Havana) AND (petroleo OR "gas natural" OR OPEP OR OPEC OR oleoducto OR gasoducto OR LNG OR refineria) when:7d',
+        '(Cuba OR Habana OR Havana OR Varadero OR MINTUR) AND (hotel OR hoteles OR resort OR aeropuerto OR aeropuertos OR transporte OR crucero OR marina OR electricidad OR combustible OR agua OR conectividad) AND (turismo OR turistas OR visitantes OR viajes) when:14d',
         'es-419',
         'US',
         'US:es-419',
       ),
     },
     {
-      name: 'Oil & Gas (Cuba)',
+      name: 'Cuba Tourism Infrastructure (EN)',
       url: googleNewsRssPlain(
-        '(Cuba OR Havana OR Habana) AND ("oil price" OR OPEC OR "natural gas" OR pipeline OR LNG OR refinery) when:7d',
+        '(Cuba OR Havana OR Habana OR Varadero OR MINTUR) AND (hotel OR resort OR airport OR transport OR cruise OR marina OR electricity OR fuel OR water OR connectivity) AND (tourism OR tourists OR visitors OR travel) when:14d',
         'en-US',
         'US',
         'US:en',
       ),
     },
     {
-      name: 'Energía Nuclear (Cuba)',
+      name: 'Aeropuertos y Vuelos Cuba',
       url: googleNewsRssPlain(
-        '(Cuba OR Habana OR Havana) AND ("energia nuclear" OR "energia atomica" OR uranio OR OIEA OR IAEA) when:7d',
+        '(Cuba OR Habana OR Havana OR Varadero OR Holguin OR "Santiago de Cuba") AND (aeropuerto OR vuelos OR aerolineas OR ruta OR charter OR terminal OR conectividad aerea) when:14d',
         'es-419',
         'US',
         'US:es-419',
       ),
     },
     {
-      name: 'Nuclear Energy (Cuba)',
+      name: 'Cruise and Marina Cuba',
       url: googleNewsRssPlain(
-        '(Cuba OR Havana OR Habana) AND ("nuclear energy" OR "nuclear power" OR uranium OR IAEA) when:7d',
+        '(Cuba OR Havana OR Habana OR "Santiago de Cuba" OR Cienfuegos OR "Isla de la Juventud") AND (cruise OR cruises OR marina OR port OR yacht OR nautical OR crucero OR cruceros) AND (tourism OR travel OR turismo) when:30d',
         'en-US',
         'US',
         'US:en',
       ),
     },
     {
-      name: 'Reuters Energía Cuba',
+      name: 'Hoteles y Resorts Cuba',
       url: googleNewsRssPlain(
-        '(site:reuters.com) AND (Cuba OR Habana OR Havana) AND (energia OR petroleo OR gas OR OPEP OR OPEC OR LNG) when:7d',
+        '(Cuba OR Habana OR Havana OR Varadero OR "Cayo Coco" OR "Cayo Santa Maria" OR Holguin) AND (hotel OR hoteles OR resort OR alojamiento OR habitaciones OR ocupacion OR renovacion OR apertura) when:30d',
         'es-419',
         'US',
         'US:es-419',
       ),
     },
     {
-      name: 'Reuters Energy Cuba (EN)',
+      name: 'Cuba Hotels and Resorts (EN)',
       url: googleNewsRssPlain(
-        '(site:reuters.com) AND (Cuba OR Havana OR Habana) AND (energy OR oil OR gas OR OPEC OR LNG) when:7d',
-        'en-US',
-        'US',
-        'US:en',
-      ),
-    },
-    {
-      name: 'Minería y Recursos Naturales (Cuba)',
-      url: googleNewsRssPlain(
-        '(Cuba OR Habana OR Havana) AND ("recursos naturales" OR mineria OR "industria extractiva" OR niquel OR cobalto OR litio OR "tierras raras" OR cobre OR minerales) when:7d',
-        'es-419',
-        'US',
-        'US:es-419',
-      ),
-    },
-    {
-      name: 'Mining & Natural Resources (Cuba)',
-      url: googleNewsRssPlain(
-        '(Cuba OR Havana OR Habana) AND ("natural resources" OR mining OR extractive OR nickel OR cobalt OR lithium OR "rare earth" OR copper OR minerals) when:7d',
+        '(Cuba OR Havana OR Habana OR Varadero OR "Cayo Coco" OR "Cayo Santa Maria" OR Holguin) AND (hotel OR resort OR accommodation OR rooms OR occupancy OR renovation OR opening) when:30d',
         'en-US',
         'US',
         'US:en',
@@ -1046,50 +1026,94 @@ const FULL_FEEDS: Record<string, Feed[]> = {
   
   cuba: [
     {
-      name: 'Cubadebate',
-      url: googleNewsRss('(site:cubadebate.cu+OR+"Cubadebate")+when:7d', 'es-419', 'US', 'US:es-419'),
-      fallbackUrls: [railwayRss('https://www.cubadebate.cu/feed')],
+      name: 'Turismo Cuba',
+      url: googleNewsRssPlain(
+        '(Cuba OR Habana OR Havana OR Varadero OR MINTUR OR "turismo cubano") AND (turismo OR turistas OR visitantes OR hotel OR hoteles OR resort OR vuelos OR cruceros OR destinos) when:14d',
+        'es-419',
+        'US',
+        'US:es-419',
+      ),
     },
     {
-      name: 'Granma',
-      url: googleNewsRss('(site:granma.cu+OR+"Granma")+when:7d', 'es-419', 'US', 'US:es-419'),
-      fallbackUrls: [railwayRss('https://www.granma.cu/feed')],
+      name: 'Cuba Tourism (EN)',
+      url: googleNewsRssPlain(
+        '(Cuba OR Havana OR Habana OR Varadero OR MINTUR OR "Cuban tourism") AND (tourism OR tourists OR visitors OR hotel OR resort OR flights OR cruises OR destinations) when:14d',
+        'en-US',
+        'US',
+        'US:en',
+      ),
     },
     {
-      name: 'JuventudRebelde',
-      url: googleNewsRss('(site:juventudrebelde.cu+OR+"Juventud+Rebelde")+when:7d', 'es-419', 'US', 'US:es-419'),
-      fallbackUrls: [rss('https://www.juventudrebelde.cu/get/rss/grupo/generales')],
+      name: 'MINTUR y FITCuba',
+      url: googleNewsRssPlain(
+        '(site:mintur.gob.cu OR MINTUR OR FITCuba OR "Feria Internacional de Turismo" OR "Ministerio de Turismo de Cuba") AND (turismo OR visitantes OR hoteles OR destinos OR feria OR viaje) when:30d',
+        'es-419',
+        'US',
+        'US:es-419',
+      ),
     },
     {
-      name: 'Trabajadores',
-      url: googleNewsRss('(site:trabajadores.cu+OR+"Trabajadores")+when:7d', 'es-419', 'US', 'US:es-419'),
-      fallbackUrls: [railwayRss('https://www.trabajadores.cu/feed')],
+      name: 'Varadero y Cayos',
+      url: googleNewsRssPlain(
+        '(Varadero OR "Cayo Coco" OR "Cayo Guillermo" OR "Cayo Santa Maria" OR "Cayo Santa María" OR Guardalavaca OR "Playa Pesquero") AND (turismo OR turistas OR hotel OR hoteles OR resort OR vuelos OR visitantes) when:14d',
+        'es-419',
+        'US',
+        'US:es-419',
+      ),
     },
     {
-      name: 'Tribuna',
-      url: googleNewsRss('(site:tribuna.cu+OR+"Tribuna+de+La+Habana")+when:7d', 'es-419', 'US', 'US:es-419'),
-      fallbackUrls: [railwayRss('https://www.tribuna.cu/feed')],
+      name: 'La Habana Turística',
+      url: googleNewsRssPlain(
+        '("La Habana" OR Havana OR "Habana Vieja" OR "Old Havana") AND (turismo OR turistas OR visitantes OR hotel OR hoteles OR patrimonio OR cultura OR museo OR festival OR vuelos) when:14d',
+        'es-419',
+        'US',
+        'US:es-419',
+      ),
     },
     {
-      name: 'PrensaLatina',
-      url: googleNewsRss('(site:prensalatina.cu+OR+site:prensa-latina.cu+OR+"Prensa+Latina")+when:7d', 'es-419', 'US', 'US:es-419'),
-      fallbackUrls: [railwayRss('https://www.prensalatina.cu/feed')],
+      name: 'Cuba Vuelos y Aerolíneas',
+      url: googleNewsRssPlain(
+        '(Cuba OR Habana OR Havana OR Varadero OR Holguin OR "Santiago de Cuba") AND (vuelos OR aerolineas OR aeropuerto OR ruta OR charter OR "air connectivity" OR flight OR airline) when:14d',
+        'es-419',
+        'US',
+        'US:es-419',
+      ),
     },
     {
-      name: '14ymedio',
-      url: googleNewsRss('(site:14ymedio.com+OR+"14ymedio")+when:7d', 'es-419', 'US', 'US:es-419'),
+      name: 'Cuba Cruceros',
+      url: googleNewsRssPlain(
+        '(Cuba OR Habana OR Havana OR Cienfuegos OR "Santiago de Cuba") AND (crucero OR cruceros OR cruise OR cruises OR puerto OR port OR marina) AND (turismo OR tourism OR travel) when:30d',
+        'es-419',
+        'US',
+        'US:es-419',
+      ),
     },
     {
-      name: 'Directorio Cubano',
-      url: googleNewsRss('(site:directoriocubano.info+OR+"Directorio+Cubano")+when:7d', 'es-419', 'US', 'US:es-419'),
+      name: 'Turismo Cultural Cuba',
+      url: googleNewsRssPlain(
+        '(Cuba OR Habana OR Havana OR Trinidad OR Viñales OR Vinales OR "Santiago de Cuba" OR Baracoa) AND (turismo cultural OR patrimonio OR museo OR festival OR musica OR gastronomia OR visitantes OR travel) when:14d',
+        'es-419',
+        'US',
+        'US:es-419',
+      ),
     },
     {
-      name: 'Cubanet',
-      url: googleNewsRss('(site:cubanet.org+OR+"Cubanet"+OR+"CubaNet")+when:7d', 'es-419', 'US', 'US:es-419'),
+      name: 'Ecoturismo Cuba',
+      url: googleNewsRssPlain(
+        '(Cuba OR Viñales OR Vinales OR Baracoa OR "Cienaga de Zapata" OR "Ciénaga de Zapata" OR "Alejandro de Humboldt" OR "Topes de Collantes") AND (ecoturismo OR naturaleza OR senderismo OR turismo OR visitantes OR travel OR conservation) when:30d',
+        'es-419',
+        'US',
+        'US:es-419',
+      ),
     },
     {
-      name: 'CiberCuba',
-      url: googleNewsRss('(site:cibercuba.com+OR+"CiberCuba")+when:7d', 'es-419', 'US', 'US:es-419'),
+      name: 'Noticias Prácticas Viajeros Cuba',
+      url: googleNewsRssPlain(
+        '(Cuba OR Habana OR Havana) AND (viajeros OR turistas OR visitantes OR travel) AND (visa OR visado OR aduana OR moneda OR tipo de cambio OR internet OR transporte OR electricidad OR requisitos) when:14d',
+        'es-419',
+        'US',
+        'US:es-419',
+      ),
     },
   ],
   ...CUBA_PROVINCIAL_FEEDS,

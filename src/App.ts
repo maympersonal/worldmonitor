@@ -150,6 +150,25 @@ export interface CountryBriefSignals {
 }
 
 export class App {
+  private static readonly CUBA_PROVINCE_CATEGORY_KEYS = new Set([
+    'pinarDelRio',
+    'artemisa',
+    'laHabana',
+    'islaDeLaJuventud',
+    'mayabeque',
+    'matanzas',
+    'cienfuegos',
+    'villaClara',
+    'sanctiSpiritus',
+    'ciegoDeAvila',
+    'camaguey',
+    'lasTunas',
+    'holguin',
+    'granma',
+    'santiagoDeCuba',
+    'guantanamo',
+  ]);
+
   private container: HTMLElement;
   private readonly PANEL_ORDER_KEY = 'panel-order';
   private map: MapContainer | null = null;
@@ -300,6 +319,15 @@ export class App {
           }
           localStorage.setItem(TECH_INSIGHTS_MIGRATION_KEY, 'done');
         }
+      }
+    }
+
+    if (currentVariant === 'full') {
+      const FLIGHTS_LAYER_MIGRATION_KEY = 'worldmonitor-full-flights-layer-v1';
+      if (!localStorage.getItem(FLIGHTS_LAYER_MIGRATION_KEY)) {
+        this.mapLayers.flights = true;
+        saveToStorage(STORAGE_KEYS.mapLayers, this.mapLayers);
+        localStorage.setItem(FLIGHTS_LAYER_MIGRATION_KEY, 'done');
       }
     }
 
@@ -749,7 +777,7 @@ export class App {
       }
 
       // Load data when layer is enabled (if not already loaded)
-      if (enabled) {
+      if (enabled && !(SITE_VARIANT === 'full' && layer === 'flights')) {
         this.loadDataForLayer(layer);
       }
     });
@@ -3166,7 +3194,7 @@ export class App {
     if (this.mapLayers.weather) tasks.push({ name: 'weather', task: runGuarded('weather', () => this.loadWeatherAlerts()) });
     if (this.mapLayers.ais) tasks.push({ name: 'ais', task: runGuarded('ais', () => this.loadAisSignals()) });
     if (this.mapLayers.cables) tasks.push({ name: 'cables', task: runGuarded('cables', () => this.loadCableActivity()) });
-    if (this.mapLayers.flights) tasks.push({ name: 'flights', task: runGuarded('flights', () => this.loadFlightDelays()) });
+    if (SITE_VARIANT !== 'full' && this.mapLayers.flights) tasks.push({ name: 'flights', task: runGuarded('flights', () => this.loadFlightDelays()) });
     if (CYBER_LAYER_ENABLED && this.mapLayers.cyberThreats) tasks.push({ name: 'cyberThreats', task: runGuarded('cyberThreats', () => this.loadCyberThreats()) });
     if (this.mapLayers.techEvents || SITE_VARIANT === 'tech') tasks.push({ name: 'techEvents', task: runGuarded('techEvents', () => this.loadTechEvents()) });
 
@@ -3222,7 +3250,11 @@ export class App {
             await this.loadProtests();
             break;
           case 'flights':
-            await this.loadFlightDelays();
+            if (SITE_VARIANT === 'full') {
+              this.map?.setLayerReady('flights', true);
+            } else {
+              await this.loadFlightDelays();
+            }
             break;
           case 'military':
             await this.loadMilitary();
@@ -3354,11 +3386,21 @@ export class App {
     }
 
     const filteredItems = this.filterItemsByTimeRange(provinceScopedItems);
+    const shouldRelaxProvinceTimeRange =
+      App.CUBA_PROVINCE_CATEGORY_KEYS.has(category)
+      && filteredItems.length === 0
+      && provinceScopedItems.length > 0;
+    const itemsToRender = shouldRelaxProvinceTimeRange ? provinceScopedItems : filteredItems;
+
     if (filteredItems.length === 0 && provinceScopedItems.length > 0) {
+      if (shouldRelaxProvinceTimeRange) {
+        panel.renderNews(itemsToRender);
+        return;
+      }
       panel.renderFilteredEmpty(`No items in ${this.getTimeRangeLabel()}`);
       return;
     }
-    panel.renderNews(filteredItems);
+    panel.renderNews(itemsToRender);
   }
 
   private applyTimeRangeFilterToNewsPanels(): void {
@@ -4705,7 +4747,7 @@ export class App {
     // this.scheduleRefresh('firms', () => this.loadFirmsData(), 30 * 60 * 1000);
     this.scheduleRefresh('ais', () => this.loadAisSignals(), REFRESH_INTERVALS.ais, () => this.mapLayers.ais);
     this.scheduleRefresh('cables', () => this.loadCableActivity(), 30 * 60 * 1000, () => this.mapLayers.cables);
-    this.scheduleRefresh('flights', () => this.loadFlightDelays(), 10 * 60 * 1000, () => this.mapLayers.flights);
+    this.scheduleRefresh('flights', () => this.loadFlightDelays(), 10 * 60 * 1000, () => SITE_VARIANT !== 'full' && this.mapLayers.flights);
     this.scheduleRefresh('cyberThreats', () => {
       this.cyberThreatsCache = null;
       return this.loadCyberThreats();

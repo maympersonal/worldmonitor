@@ -4,7 +4,7 @@ import { escapeHtml } from '@/utils/sanitize';
 import { getCSSColor } from '@/utils';
 import type { Topology, GeometryCollection } from 'topojson-specification';
 import type { Feature, Geometry } from 'geojson';
-import type { MapLayers, Hotspot, NewsItem, Earthquake, InternetOutage, RelatedAsset, AssetType, AisDisruptionEvent, AisDensityZone, CableAdvisory, RepairShip, SocialUnrestEvent, AirportDelayAlert, MilitaryFlight, MilitaryVessel, MilitaryFlightCluster, MilitaryVesselCluster, NaturalEvent, CyberThreat } from '@/types';
+import type { MapLayers, Hotspot, NewsItem, Earthquake, InternetOutage, RelatedAsset, AssetType, AisDisruptionEvent, AisDensityZone, CableAdvisory, RepairShip, SocialUnrestEvent, AirportDelayAlert, MilitaryFlight, MilitaryVessel, MilitaryFlightCluster, MilitaryVesselCluster, NaturalEvent, CyberThreat, FlightRoute } from '@/types';
 import type { TechHubActivity } from '@/services/tech-activity';
 import type { GeoHubActivity } from '@/services/geo-activity';
 import { getNaturalEventIcon } from '@/services/eonet';
@@ -39,6 +39,8 @@ import {
   FINANCIAL_CENTERS,
   CENTRAL_BANKS,
   COMMODITY_HUBS,
+  CUBA_FLIGHT_ROUTES,
+  CUBA_FLIGHT_AIRPORTS,
 } from '@/config';
 import { MapPopup } from './MapPopup';
 import {
@@ -916,6 +918,10 @@ export class MapComponent {
       this.renderAisDensity(projection);
     }
 
+    if (this.state.layers.flights) {
+      this.renderFlightRoutes(projection);
+    }
+
     // GPU-accelerated cluster markers (LOD)
     this.renderClusterLayer(projection);
 
@@ -1101,6 +1107,79 @@ export class MapComponent {
           y: event.clientY - rect.top,
         });
       });
+    });
+  }
+
+  private getFlightRouteStroke(route: FlightRoute): string {
+    switch (route.market) {
+      case 'us': return '#50beff';
+      case 'canada': return '#ff6868';
+      case 'europe': return '#aa82ff';
+      case 'latin_america': return '#37dc96';
+      case 'caribbean': return '#ffcd4b';
+      default: return '#ffffff';
+    }
+  }
+
+  private renderFlightRoutes(projection: d3.GeoProjection): void {
+    if (!this.dynamicLayerGroup) return;
+    const routeGroup = this.dynamicLayerGroup.append('g').attr('class', 'flight-routes');
+
+    CUBA_FLIGHT_ROUTES.forEach((route) => {
+      const source = projection([route.origin.lon, route.origin.lat]);
+      const target = projection([route.destination.lon, route.destination.lat]);
+      if (!source || !target) return;
+
+      const dx = target[0] - source[0];
+      const dy = target[1] - source[1];
+      const length = Math.hypot(dx, dy) || 1;
+      const lift = Math.min(120, Math.max(28, length * 0.18));
+      const controlX = (source[0] + target[0]) / 2 - (dy / length) * lift;
+      const controlY = (source[1] + target[1]) / 2 + (dx / length) * lift;
+      const stroke = this.getFlightRouteStroke(route);
+
+      routeGroup
+        .append('path')
+        .attr('class', `flight-route-path flight-route-${route.market}`)
+        .attr('d', `M${source[0]},${source[1]} Q${controlX},${controlY} ${target[0]},${target[1]}`)
+        .attr('fill', 'none')
+        .attr('stroke', stroke)
+        .attr('stroke-width', route.priority === 1 ? 2.8 : route.priority === 2 ? 2 : 1.4)
+        .attr('stroke-opacity', route.priority === 1 ? 0.85 : 0.62)
+        .attr('stroke-linecap', 'round')
+        .attr('pointer-events', 'stroke')
+        .append('title')
+        .text(`${route.origin.city} (${route.origin.iata}) -> ${route.destination.city} (${route.destination.iata})`);
+    });
+
+    CUBA_FLIGHT_AIRPORTS.forEach((airport) => {
+      const pos = projection([airport.lon, airport.lat]);
+      if (!pos) return;
+      const isCuba = airport.country === 'Cuba';
+      routeGroup
+        .append('circle')
+        .attr('class', isCuba ? 'flight-airport cuba' : 'flight-airport origin')
+        .attr('cx', pos[0])
+        .attr('cy', pos[1])
+        .attr('r', isCuba ? 4.5 : 3)
+        .attr('fill', isCuba ? '#ff7828' : '#5abefa')
+        .attr('stroke', '#ffffff')
+        .attr('stroke-width', 1)
+        .attr('opacity', isCuba ? 0.95 : 0.78)
+        .append('title')
+        .text(`${airport.city} (${airport.iata})`);
+
+      if (isCuba && this.state.zoom >= 3) {
+        routeGroup
+          .append('text')
+          .attr('x', pos[0] + 7)
+          .attr('y', pos[1] + 4)
+          .attr('class', 'flight-airport-label')
+          .attr('fill', getCSSColor('--text-secondary'))
+          .attr('font-size', 10)
+          .attr('font-weight', 700)
+          .text(airport.iata);
+      }
     });
   }
 
@@ -2244,44 +2323,6 @@ export class MapComponent {
       });
     }
 
-    // Flight Delays (delay severity colors + ✈️ icons)
-    if (this.state.layers.flights) {
-      this.flightDelays.forEach((delay) => {
-        const pos = projection([delay.lon, delay.lat]);
-        if (!pos) return;
-
-        const div = document.createElement('div');
-        div.className = `flight-delay-marker ${delay.severity}`;
-        div.style.left = `${pos[0]}px`;
-        div.style.top = `${pos[1]}px`;
-
-        const icon = document.createElement('div');
-        icon.className = 'flight-delay-icon';
-        icon.textContent = delay.delayType === 'ground_stop' ? '🛑' : delay.severity === 'severe' ? '✈️' : '🛫';
-        div.appendChild(icon);
-
-        if (this.state.zoom >= 3) {
-          const label = document.createElement('div');
-          label.className = 'flight-delay-label';
-          label.textContent = `${delay.iata} ${delay.avgDelayMinutes > 0 ? `+${delay.avgDelayMinutes}m` : ''}`;
-          div.appendChild(label);
-        }
-
-        div.addEventListener('click', (e) => {
-          e.stopPropagation();
-          const rect = this.container.getBoundingClientRect();
-          this.popup.show({
-            type: 'flight',
-            data: delay,
-            x: e.clientX - rect.left,
-            y: e.clientY - rect.top,
-          });
-        });
-
-        this.overlays.appendChild(div);
-      });
-    }
-
     // Military Tracking (flights and vessels)
     if (this.state.layers.military) {
       // Render individual flights
@@ -2867,7 +2908,7 @@ export class MapComponent {
   }
 
   private static readonly ASYNC_DATA_LAYERS: Set<keyof MapLayers> = new Set([
-    'natural', 'weather', 'outages', 'ais', 'protests', 'flights', 'military', 'techEvents',
+    'natural', 'weather', 'outages', 'ais', 'protests', 'military', 'techEvents',
   ]);
 
   public toggleLayer(layer: keyof MapLayers): void {

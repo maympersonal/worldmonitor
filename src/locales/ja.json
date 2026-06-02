@@ -575,7 +575,7 @@
         "pipelines": "パイプライン",
         "militaryActivity": "軍事活動",
         "shipTraffic": "船舶交通",
-        "flightDelays": "フライト遅延",
+        "flightDelays": "キューバ行きフライト",
         "protests": "抗議活動",
         "ucdpEvents": "UCDPイベント",
         "displacementFlows": "避難民フロー",
@@ -676,7 +676,7 @@
           "infraPipelinesFull": "石油/ガスパイプライン（Nord Stream、TAPI等）",
           "infraDatacentersFull": "10,000 GPU以上のAIコンピュートクラスターのみ",
           "transportShipping": "船舶、チョークポイント、61の戦略港湾",
-          "transportDelays": "空港の遅延とグラウンドストップ（FAA）",
+          "transportDelays": "キューバの空港へ向かう航空ルートと回廊",
           "naturalEventsFull": "地震（USGS）+ 暴風雨、火災、火山、洪水（NASA EONET）",
           "waterwaysLabels": "戦略的チョークポイントのラベル"
         },

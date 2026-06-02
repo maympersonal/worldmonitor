@@ -727,6 +727,26 @@ export interface MonitoredAirport {
   region: AirportRegion;
 }
 
+export type FlightRouteMarket = 'us' | 'canada' | 'europe' | 'latin_america' | 'caribbean';
+
+export interface FlightRouteEndpoint {
+  iata: string;
+  name: string;
+  city: string;
+  country: string;
+  lat: number;
+  lon: number;
+}
+
+export interface FlightRoute {
+  id: string;
+  origin: FlightRouteEndpoint;
+  destination: FlightRouteEndpoint;
+  market: FlightRouteMarket;
+  priority: 1 | 2 | 3;
+  note?: string;
+}
+
 // Military Flight Tracking Types
 export type MilitaryAircraftType =
   | 'fighter'           // F-15, F-16, F-22, F-35, Su-27, etc.

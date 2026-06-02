@@ -575,7 +575,7 @@
         "pipelines": "管道",
         "militaryActivity": "军事活动",
         "shipTraffic": "船舶交通",
-        "flightDelays": "航班延误",
+        "flightDelays": "飞往古巴的航班",
         "protests": "抗议活动",
         "ucdpEvents": "UCDP事件",
         "displacementFlows": "流离失所流向",
@@ -676,7 +676,7 @@
           "infraPipelinesFull": "油气管道（北溪、TAPI等）",
           "infraDatacentersFull": "仅显示AI算力集群 >=10,000 GPU",
           "transportShipping": "船舶、咽喉要道、61个战略港口",
-          "transportDelays": "机场延误和地面停航（FAA）",
+          "transportDelays": "飞往古巴机场的航线轨迹和空中走廊",
           "naturalEventsFull": "地震（USGS）+ 风暴、火灾、火山、洪水（NASA EONET）",
           "waterwaysLabels": "战略咽喉要道标签"
         },

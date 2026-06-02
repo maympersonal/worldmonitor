@@ -560,7 +560,7 @@ const VISUAL_SCENARIOS: VisualScenario[] = [
     variant: 'both',
     enabledLayers: ['flights'],
     camera: seededCameras.flights,
-    expectedDeckLayers: ['flight-delays-layer'],
+    expectedDeckLayers: ['cuba-flight-routes-layer'],
     expectedSelectors: [],
   },
   {
