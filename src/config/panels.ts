@@ -5,13 +5,13 @@ import { SITE_VARIANT } from './variant';
 // FULL VARIANT (Geopolitical)
 // ============================================
 // Panel order matters! First panels appear at top of grid.
-// Desired order: live-news, AI Insights, AI Strategic Posture, cii, strategic-risk, then rest
+// Desired order: live-news, AI Insights, AI Strategic Posture, strategic-risk, then rest
 const FULL_PANELS: Record<string, PanelConfig> = {
   map: { name: 'Global Tourism Map', enabled: true, priority: 1 },
   'live-news': { name: 'Live Tourism News', enabled: true, priority: 1 },
   insights: { name: 'AI Tourism Insights', enabled: true, priority: 1 },
   'strategic-posture': { name: 'AI Tourism Outlook', enabled: true, priority: 1 },
-  cii: { name: 'Traveler Risk Index', enabled: true, priority: 1 },
+  cii: { name: 'Traveler Risk Index', enabled: false, priority: 1 },
   'strategic-risk': { name: 'Tourism Risk Overview', enabled: true, priority: 1 },
   intel: { name: 'Tourism Intel Feed', enabled: true, priority: 1 },
   'gdelt-intel': { name: 'Live Tourism Intelligence', enabled: true, priority: 1 },

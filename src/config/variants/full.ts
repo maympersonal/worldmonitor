@@ -21,7 +21,7 @@ export const DEFAULT_PANELS: Record<string, PanelConfig> = {
   'live-news': { name: 'Live Tourism News', enabled: true, priority: 1 },
   intel: { name: 'Tourism Intel Feed', enabled: true, priority: 1 },
   'gdelt-intel': { name: 'Live Tourism Intelligence', enabled: true, priority: 1 },
-  cii: { name: 'Traveler Risk Index', enabled: true, priority: 1 },
+  cii: { name: 'Traveler Risk Index', enabled: false, priority: 1 },
   cascade: { name: 'Tourism Infrastructure Impact', enabled: true, priority: 1 },
   'strategic-risk': { name: 'Tourism Risk Overview', enabled: true, priority: 1 },
   politics: { name: 'World Tourism', enabled: true, priority: 1 },

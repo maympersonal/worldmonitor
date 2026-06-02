@@ -136,6 +136,9 @@ const CYBER_LAYER_ENABLED = import.meta.env.VITE_ENABLE_CYBER_LAYER === 'true';
 const ENABLE_AI_INSIGHTS_SECTION = false;
 // Desactivado por solicitud: evitar ejecución de AI Strategic Posture.
 const ENABLE_AI_STRATEGIC_POSTURE_SECTION = false;
+// Desactivado por solicitud: evitar ejecución de Traveler Risk Index.
+const ENABLE_TRAVELER_RISK_INDEX_SECTION = false;
+const HIDDEN_PANEL_TOGGLES = new Set(['cii']);
 
 export interface CountryBriefSignals {
   protests: number;
@@ -342,6 +345,7 @@ export class App {
       'heatmap',
       'layoffs',
       'satellite-fires',
+      'cii',
       'macro-signals',
       'etf-flows',
       'stablecoins',
@@ -2256,11 +2260,13 @@ export class App {
       // const gdeltIntelPanel = new GdeltIntelPanel();
       // this.panels['gdelt-intel'] = gdeltIntelPanel;
 
-      const ciiPanel = new CIIPanel();
-      ciiPanel.setShareStoryHandler((code, name) => {
-        this.openCountryStory(code, name);
-      });
-      this.panels['cii'] = ciiPanel;
+      if (ENABLE_TRAVELER_RISK_INDEX_SECTION) {
+        const ciiPanel = new CIIPanel();
+        ciiPanel.setShareStoryHandler((code, name) => {
+          this.openCountryStory(code, name);
+        });
+        this.panels['cii'] = ciiPanel;
+      }
 
       // Desactivado por solicitud: panel de cascada de infraestructura.
       // const cascadePanel = new CascadePanel();
@@ -2947,6 +2953,7 @@ export class App {
   private renderPanelToggles(): void {
     const container = document.getElementById('panelToggles')!;
     const panelHtml = Object.entries(this.panelSettings)
+      .filter(([key]) => !HIDDEN_PANEL_TOGGLES.has(key))
       .filter(([key]) => key !== 'runtime-config' || this.isDesktopApp)
       .map(
         ([key, panel]) => `
