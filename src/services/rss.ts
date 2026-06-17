@@ -5,7 +5,7 @@ import { classifyByKeyword, classifyWithAI } from './threat-classifier';
 import { inferGeoHubsFromTitle } from './geo-hub-index';
 import { getPersistentCache, setPersistentCache } from './persistent-cache';
 import { ingestHeadlines } from './trending-keywords';
-import { matchesCubaProvinceNewsText } from './cuba-province-news-filter';
+import { matchesCubaProvinceTourismNewsText } from './cuba-province-news-filter';
 
 // Per-feed circuit breaker: track failures and cooldowns
 const FEED_COOLDOWN_MS = 5 * 60 * 1000; // 5 minutes after failure
@@ -254,7 +254,12 @@ function isCubaScopedFeed(feedName: string): boolean {
 
 function shouldKeepProvinceScopedHeadline(feed: Feed, title: string, snippet: string): boolean {
   if (!feed.provinceTextFilterId) return true;
-  return matchesCubaProvinceNewsText(feed.provinceTextFilterId, `${title} ${snippet}`);
+  return matchesCubaProvinceTourismNewsText(feed.provinceTextFilterId, `${title} ${snippet}`);
+}
+
+function filterProvinceScopedItems(feed: Feed, items: NewsItem[]): NewsItem[] {
+  if (!feed.provinceTextFilterId) return items;
+  return items.filter((item) => shouldKeepProvinceScopedHeadline(feed, item.title, item.snippet || ''));
 }
 
 function toSerializable(items: NewsItem[]): Array<Omit<NewsItem, 'pubDate'> & { pubDate: string }> {
@@ -481,16 +486,23 @@ export async function fetchFeed(feed: Feed): Promise<NewsItem[]> {
 
   if (isFeedOnCooldown(feed.name)) {
     const cached = feedCache.get(feed.name);
-    if (cached && !(hasStrictLocalFilter && cached.items.length === 0)) return cached.items;
+    if (cached) {
+      const cachedItems = filterProvinceScopedItems(feed, cached.items);
+      if (!(hasStrictLocalFilter && cachedItems.length === 0)) return cachedItems;
+    }
     const persistent = await loadPersistentFeed(feed.name);
-    if (persistent && !(hasStrictLocalFilter && persistent.length === 0)) return persistent;
+    if (persistent) {
+      const persistentItems = filterProvinceScopedItems(feed, persistent);
+      if (!(hasStrictLocalFilter && persistentItems.length === 0)) return persistentItems;
+    }
     return [];
   }
 
   const cached = feedCache.get(feed.name);
   if (cached && Date.now() - cached.timestamp < CACHE_TTL) {
-    if (!(hasStrictLocalFilter && cached.items.length === 0)) {
-      return cached.items;
+    const cachedItems = filterProvinceScopedItems(feed, cached.items);
+    if (!(hasStrictLocalFilter && cachedItems.length === 0)) {
+      return cachedItems;
     }
   }
 

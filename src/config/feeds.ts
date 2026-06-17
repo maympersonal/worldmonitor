@@ -502,13 +502,13 @@ const CUBA_PROVINCE_FEED_DEFINITIONS: CubaProvinceFeedDefinition[] = [
 ];
 
 const CUBA_TOURISM_TOPIC_QUERY =
-  '(turismo OR turistico OR turistica OR turistas OR visitante OR visitantes OR hotel OR hoteles OR resort OR playa OR playas OR patrimonio OR festival OR cultura OR vuelo OR vuelos OR aeropuerto OR crucero OR cruceros OR marina OR alojamiento OR gastronomia OR ecoturismo OR travel OR tourism OR tourist OR visitors OR beach OR heritage OR flight OR airport OR cruise)';
+  '(turismo OR turistico OR turistica OR turistas OR visitante OR visitantes OR viajeros OR viaje OR viajes OR hotel OR hoteles OR resort OR playa OR playas OR patrimonio OR festival OR cultura OR vuelo OR vuelos OR aeropuerto OR aerolineas OR crucero OR cruceros OR marina OR alojamiento OR gastronomia OR ecoturismo OR destino OR destinos OR travel OR tourism OR tourist OR visitors OR beach OR heritage OR flight OR airport OR airline OR cruise OR destination)';
 
 const CUBA_PROVINCIAL_FEEDS: Record<string, Feed[]> = Object.fromEntries(
   CUBA_PROVINCE_FEED_DEFINITIONS.map(({ key, panelName, terms, destinationTerms = [] }) => {
     const provinceTextFilterId = key.replace(/([a-z])([A-Z])/g, '$1-$2').toLowerCase();
     const locationQuery = Array.from(new Set([...terms, ...destinationTerms])).join(' OR ');
-    const tourismRecentQuery = `(${locationQuery} ${CUBA_TOURISM_TOPIC_QUERY}) when:7d`;
+    const tourismRecentQuery = `(${locationQuery}) AND ${CUBA_TOURISM_TOPIC_QUERY} when:7d`;
 
     const provinceFeeds: Feed[] = [
       {

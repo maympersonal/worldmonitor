@@ -97,7 +97,7 @@ import { isFeatureAvailable } from '@/services/runtime-config';
 import { invokeTauri } from '@/services/tauri-bridge';
 import {
   findCubaProvinceNewsFilterById,
-  matchesCubaProvinceNewsText,
+  matchesCubaProvinceTourismNewsText,
   type CubaProvinceNewsFilter,
 } from '@/services/cuba-province-news-filter';
 import { getCountryAtCoordinates, hasCountryGeometry, isCoordinateInCountry, preloadCountryGeometry } from '@/services/country-geometry';
@@ -3618,7 +3618,7 @@ export class App {
 
     return items.filter((item) => {
       const haystack = `${item.title} ${item.snippet || ''} ${item.locationName || ''}`;
-      return matchesCubaProvinceNewsText(provinceFilter, haystack);
+      return matchesCubaProvinceTourismNewsText(provinceFilter, haystack);
     });
   }
 
