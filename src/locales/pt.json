@@ -1439,8 +1439,8 @@
     "toggleTheme": "Alternar modo claro/escuro"
   },
   "app": {
-    "title": "World Monitor",
-    "description": "Situação Global com Insights de IA"
+    "title": "monitor",
+    "description": ""
   },
   "countryBrief": {
     "identifying": "Identificando país...",

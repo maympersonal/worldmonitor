@@ -1,7 +1,7 @@
 {
   "app": {
-    "title": "World Monitor",
-    "description": "Global Situation with AI Insights"
+    "title": "monitor",
+    "description": ""
   },
   "countryBrief": {
     "identifying": "Identifying country...",

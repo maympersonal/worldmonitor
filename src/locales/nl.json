@@ -1439,8 +1439,8 @@
     "toggleTheme": "Schakel tussen de donkere/lichte modus"
   },
   "app": {
-    "title": "World Monitor",
-    "description": "Mondiale situatie met AI-inzichten"
+    "title": "monitor",
+    "description": ""
   },
   "countryBrief": {
     "identifying": "Land identificeren...",

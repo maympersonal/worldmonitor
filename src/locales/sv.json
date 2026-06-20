@@ -1439,8 +1439,8 @@
     "toggleTheme": "Växla mellan mörkt/ljusläge"
   },
   "app": {
-    "title": "World Monitor",
-    "description": "Global situation med AI-insikter"
+    "title": "monitor",
+    "description": ""
   },
   "countryBrief": {
     "identifying": "Identifierar land...",

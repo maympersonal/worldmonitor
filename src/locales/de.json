@@ -1,7 +1,7 @@
 {
   "app": {
-    "title": "World Monitor",
-    "description": "Globale Lage mit KI-Erkenntnissen"
+    "title": "monitor",
+    "description": ""
   },
   "countryBrief": {
     "identifying": "Land wird identifiziert...",

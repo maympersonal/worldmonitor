@@ -1,7 +1,7 @@
 {
   "app": {
-    "title": "World Monitor",
-    "description": "AIインサイト付きグローバル情勢"
+    "title": "monitor",
+    "description": ""
   },
   "countryBrief": {
     "identifying": "国を特定中...",

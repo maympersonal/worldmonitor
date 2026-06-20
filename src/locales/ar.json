@@ -1,7 +1,7 @@
 {
   "app": {
-    "title": "مراقب العالم",
-    "description": "الوضع العالمي مع رؤى الذكاء الاصطناعي"
+    "title": "monitor",
+    "description": ""
   },
   "countryBrief": {
     "identifying": "جارٍ تحديد الدولة...",
