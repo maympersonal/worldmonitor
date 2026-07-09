@@ -24,6 +24,11 @@ const isDesktopRuntime = process.env.VITE_DESKTOP_RUNTIME === '1';
 const shouldOpenBrowser = process.env.VITE_OPEN_BROWSER !== '0';
 const useLocalApiProxy = process.env.VITE_USE_LOCAL_API === '1';
 const localApiProxyTarget = process.env.VITE_LOCAL_API_TARGET || 'http://127.0.0.1:46123';
+const localAiTimeoutMs = Math.max(
+  1000,
+  Number(process.env.LOCALAI_REQUEST_TIMEOUT_MS || 25000) || 25000
+);
+const localApiProxyTimeoutMs = Math.max(30000, localAiTimeoutMs + 5000);
 
 const VARIANT_META: Record<string, {
   title: string;
@@ -504,7 +509,7 @@ export default defineConfig({
             target: localApiProxyTarget,
             changeOrigin: true,
             secure: false,
-            timeout: 30000,
+            timeout: localApiProxyTimeoutMs,
             configure: (proxy: import('http-proxy').Server) => {
               proxy.on('error', (err: Error) => {
                 console.log('Local API proxy error:', err.message);

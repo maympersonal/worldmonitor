@@ -1,14 +1,14 @@
 /**
  * Summarization Service with Fallback Chain
  * Server-side Redis caching handles cross-user deduplication
- * Fallback: Hugging Face -> Alibaba Qwen -> Browser T5
+ * Fallback: LocalAI -> Hugging Face -> Alibaba Qwen -> Browser T5
  */
 
 import { mlWorker } from './ml-worker';
 import { SITE_VARIANT } from '@/config';
 import { isFeatureAvailable } from './runtime-config';
 
-export type SummarizationProvider = 'huggingface' | 'alibaba' | 'browser' | 'cache';
+export type SummarizationProvider = 'localai' | 'huggingface' | 'alibaba' | 'browser' | 'cache';
 
 export interface SummarizationResult {
   summary: string;
@@ -86,18 +86,20 @@ async function tryRemoteSummary(headlines: string[], geoContext?: string): Promi
       return null;
     }
 
-    const provider = data.cached
+    const provider: SummarizationProvider = data.cached
       ? 'cache'
-      : data.provider === 'huggingface'
-        ? 'huggingface'
-        : 'alibaba';
+      : data.provider === 'localai'
+        ? 'localai'
+        : data.provider === 'huggingface'
+          ? 'huggingface'
+          : 'alibaba';
     console.log(
       `[Summarization] ${provider === 'cache' ? 'Redis cache hit' : `${provider} success`}:`,
       data.model
     );
     return {
       summary: data.summary,
-      provider: provider as SummarizationProvider,
+      provider,
       cached: !!data.cached,
     };
   } catch (error) {
@@ -138,7 +140,7 @@ async function tryBrowserT5(headlines: string[]): Promise<SummarizationResult | 
 }
 
 /**
- * Generate a summary using the fallback chain: Hugging Face -> Alibaba Qwen -> Browser T5
+ * Generate a summary using the fallback chain: LocalAI -> Hugging Face -> Alibaba Qwen -> Browser T5
  * Server-side Redis caching is handled by the API endpoints
  * @param geoContext Optional geographic signal context to include in the prompt
  */
@@ -168,7 +170,7 @@ export async function generateSummary(
   const totalSteps = allowBrowserFallback ? 2 : 1;
 
   if (remoteAvailable) {
-    // Step 1: Try the shared server route. It prefers Hugging Face, then DashScope.
+    // Step 1: Try the shared server route. It prefers LocalAI, then Hugging Face and DashScope.
     onProgress?.(1, totalSteps, 'Connecting to AI provider...');
     const remoteResult = await tryRemoteSummary(headlines, geoContext);
     if (remoteResult) {

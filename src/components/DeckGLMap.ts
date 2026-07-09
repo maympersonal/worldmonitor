@@ -264,6 +264,8 @@ export class DeckGLMap {
   private firmsFireData: Array<{ lat: number; lon: number; brightness: number; frp: number; confidence: number; region: string; acq_date: string; daynight: string }> = [];
   private techEvents: TechEventMarker[] = [];
   private flightDelays: AirportDelayAlert[] = [];
+  private cubaFlightRoutes: FlightRoute[] = CUBA_FLIGHT_ROUTES;
+  private cubaFlightAirports: FlightRouteEndpoint[] = CUBA_FLIGHT_AIRPORTS;
   private news: NewsItem[] = [];
   private newsLocations: Array<{ lat: number; lon: number; title: string; threatLevel: string; timestamp?: Date }> = [];
   private newsLocationFirstSeen = new Map<string, number>();
@@ -1131,7 +1133,6 @@ export class DeckGLMap {
     if (mapLayers.flights) {
       layers.push(this.createCubaFlightRoutesLayer());
       layers.push(this.createCubaFlightAirportsLayer());
-      layers.push(this.createCubaFlightRouteLabelsLayer());
     }
 
     // Protests layer (Supercluster-based deck.gl layers)
@@ -1467,18 +1468,13 @@ export class DeckGLMap {
     }
   }
 
-  private getFlightRouteMidpoint(route: FlightRoute): [number, number] {
-    return [
-      (route.origin.lon + route.destination.lon) / 2,
-      (route.origin.lat + route.destination.lat) / 2,
-    ];
-  }
-
   private createCubaFlightRoutesLayer(): ArcLayer<FlightRoute> {
     return new ArcLayer<FlightRoute>({
       id: 'cuba-flight-routes-layer',
-      data: CUBA_FLIGHT_ROUTES,
-      getSourcePosition: (d) => [d.origin.lon, d.origin.lat],
+      data: this.cubaFlightRoutes,
+      getSourcePosition: (d) => d.currentPosition
+        ? [d.currentPosition.lon, d.currentPosition.lat]
+        : [d.origin.lon, d.origin.lat],
       getTargetPosition: (d) => [d.destination.lon, d.destination.lat],
       getSourceColor: (d) => this.getFlightRouteColor(d, 90),
       getTargetColor: (d) => this.getFlightRouteColor(d, 235),
@@ -1492,7 +1488,7 @@ export class DeckGLMap {
   private createCubaFlightAirportsLayer(): ScatterplotLayer<FlightRouteEndpoint> {
     return new ScatterplotLayer<FlightRouteEndpoint>({
       id: 'cuba-flight-airports-layer',
-      data: CUBA_FLIGHT_AIRPORTS,
+      data: this.cubaFlightAirports,
       getPosition: (d) => [d.lon, d.lat],
       getRadius: (d) => d.country === 'Cuba' ? 32000 : 18000,
       getFillColor: (d) => d.country === 'Cuba'
@@ -1504,25 +1500,6 @@ export class DeckGLMap {
       radiusMinPixels: 3,
       radiusMaxPixels: 10,
       pickable: true,
-    });
-  }
-
-  private createCubaFlightRouteLabelsLayer(): TextLayer<FlightRoute> {
-    const zoom = this.maplibreMap?.getZoom() || 2;
-    const data = CUBA_FLIGHT_ROUTES.filter((route) => route.priority === 1 || (zoom >= 3 && route.priority === 2));
-    return new TextLayer<FlightRoute>({
-      id: 'cuba-flight-route-labels-layer',
-      data,
-      getPosition: (d) => this.getFlightRouteMidpoint(d),
-      getText: (d) => `${d.origin.iata}->${d.destination.iata}`,
-      getSize: 12,
-      getColor: getCurrentTheme() === 'light'
-        ? [35, 45, 60, 220] as [number, number, number, number]
-        : [245, 250, 255, 220] as [number, number, number, number],
-      getTextAnchor: 'middle',
-      getAlignmentBaseline: 'center',
-      billboard: true,
-      pickable: false,
     });
   }
 
@@ -2545,7 +2522,9 @@ export class DeckGLMap {
         return { html: `<div class="deckgl-tooltip"><strong>${typeIcon} ${text(obj.name)}</strong><br/>${text(obj.type || t('components.deckgl.tooltip.port'))} - ${text(obj.country)}</div>` };
       }
       case 'cuba-flight-routes-layer':
-        return { html: `<div class="deckgl-tooltip"><strong>${text(obj.origin?.city)} -> ${text(obj.destination?.city)}</strong><br/>${text(obj.origin?.iata)} to ${text(obj.destination?.iata)}<br/>${text(obj.note || '')}</div>` };
+        return {
+          html: `<div class="deckgl-tooltip"><strong>${text(obj.origin?.city)} -> ${text(obj.destination?.city)}</strong><br/>${text(obj.origin?.iata)} to ${text(obj.destination?.iata)}<br/>${text(obj.note || '')}${obj.source === 'flightaware' ? '<br/><small>Source: FlightAware AeroAPI</small>' : ''}</div>`,
+        };
       case 'cuba-flight-airports-layer':
         return { html: `<div class="deckgl-tooltip"><strong>${text(obj.iata)} - ${text(obj.city)}</strong><br/>${text(obj.name)}<br/>${text(obj.country)}</div>` };
       case 'apt-groups-layer':
@@ -2757,6 +2736,7 @@ export class DeckGLMap {
       'ais-disruptions-layer': 'ais',
       'cable-advisories-layer': 'cable-advisory',
       'repair-ships-layer': 'repair-ship',
+      'cuba-flight-routes-layer': 'cubaFlight',
     };
 
     const popupType = layerToPopupType[layerId];
@@ -3411,6 +3391,12 @@ export class DeckGLMap {
 
   public setFlightDelays(delays: AirportDelayAlert[]): void {
     this.flightDelays = delays;
+    this.render();
+  }
+
+  public setCubaFlightRoutes(routes: FlightRoute[], airports: FlightRouteEndpoint[]): void {
+    this.cubaFlightRoutes = routes;
+    this.cubaFlightAirports = airports;
     this.render();
   }
 

@@ -10,6 +10,7 @@ export type DataSourceId =
   | 'acled'      // Protests/conflicts
   | 'opensky'    // Military flights
   | 'wingbits'   // Aircraft enrichment
+  | 'flightaware' // Cuba-bound commercial flights
   | 'ais'        // Vessel tracking
   | 'usgs'       // Earthquakes
   | 'gdelt'      // News velocity
@@ -68,6 +69,7 @@ const SOURCE_METADATA: Record<DataSourceId, { name: string; requiredForRisk: boo
   acled: { name: 'Protests & Conflicts', requiredForRisk: false, panelId: 'protests' },
   opensky: { name: 'Military Flights', requiredForRisk: false, panelId: 'military' },
   wingbits: { name: 'Aircraft Enrichment', requiredForRisk: false, panelId: 'military' },
+  flightaware: { name: 'Cuba Flights (FlightAware)', requiredForRisk: false, panelId: 'map' },
   ais: { name: 'Vessel Tracking', requiredForRisk: false, panelId: 'shipping' },
   usgs: { name: 'Earthquakes', requiredForRisk: false, panelId: 'natural' },
   gdelt: { name: 'News Intelligence', requiredForRisk: true, panelId: 'intel' },
@@ -319,6 +321,7 @@ const INTELLIGENCE_GAP_MESSAGES: Record<DataSourceId, string> = {
   acled: 'Protest/conflict events may be missed—ACLED data unavailable',
   opensky: 'Military aircraft positions unknown—flight tracking offline',
   wingbits: 'Aircraft identification limited—enrichment service unavailable',
+  flightaware: 'Inbound Cuba flights unavailable—showing curated fallback routes',
   ais: 'Vessel positions outdated—possible dark shipping or AIS transponder-off activity undetected',
   usgs: 'Recent earthquakes may not be shown—seismic data unavailable',
   gdelt: 'News event velocity unknown—GDELT intelligence feed offline',

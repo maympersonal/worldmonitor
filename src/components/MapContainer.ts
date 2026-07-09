@@ -28,6 +28,8 @@ import type {
   DisplacementFlow,
   ClimateAnomaly,
   CyberThreat,
+  FlightRoute,
+  FlightRouteEndpoint,
 } from '@/types';
 import type { WeatherAlert } from '@/services/weather';
 
@@ -253,6 +255,14 @@ export class MapContainer {
       this.deckGLMap?.setFlightDelays(delays);
     } else {
       this.svgMap?.setFlightDelays(delays);
+    }
+  }
+
+  public setCubaFlightRoutes(routes: FlightRoute[], airports: FlightRouteEndpoint[]): void {
+    if (this.useDeckGL) {
+      this.deckGLMap?.setCubaFlightRoutes(routes, airports);
+    } else {
+      this.svgMap?.setCubaFlightRoutes(routes, airports);
     }
   }
 

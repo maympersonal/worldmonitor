@@ -286,6 +286,7 @@
         "URLHAUS_AUTH_KEY": "Se utiliza para las APIs de URLhaus y ThreatFox.",
         "OTX_API_KEY": "Fuente de enriquecimiento opcional para la capa de ciberamenazas.",
         "ABUSEIPDB_API_KEY": "Fuente de enriquecimiento opcional para reputación de IPs maliciosas.",
+        "FLIGHTAWARE_AEROAPI_KEY": "Vuelos entrantes actuales y programados para aeropuertos cubanos.",
         "FINNHUB_API_KEY": "Cotizaciones bursátiles en tiempo real y datos de mercado.",
         "NASA_FIRMS_API_KEY": "Sistema de detección de incendios para gestión de recursos."
       }

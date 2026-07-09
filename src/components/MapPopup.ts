@@ -1,4 +1,4 @@
-import type { ConflictZone, Hotspot, Earthquake, NewsItem, MilitaryBase, StrategicWaterway, APTGroup, NuclearFacility, EconomicCenter, GammaIrradiator, Pipeline, UnderseaCable, CableAdvisory, RepairShip, InternetOutage, AIDataCenter, AisDisruptionEvent, SocialUnrestEvent, AirportDelayAlert, MilitaryFlight, MilitaryVessel, MilitaryFlightCluster, MilitaryVesselCluster, NaturalEvent, Port, Spaceport, CriticalMineralProject, CyberThreat } from '@/types';
+import type { ConflictZone, Hotspot, Earthquake, NewsItem, MilitaryBase, StrategicWaterway, APTGroup, NuclearFacility, EconomicCenter, GammaIrradiator, Pipeline, UnderseaCable, CableAdvisory, RepairShip, InternetOutage, AIDataCenter, AisDisruptionEvent, SocialUnrestEvent, AirportDelayAlert, MilitaryFlight, MilitaryVessel, MilitaryFlightCluster, MilitaryVesselCluster, NaturalEvent, Port, Spaceport, CriticalMineralProject, CyberThreat, FlightRoute } from '@/types';
 import type { WeatherAlert } from '@/services/weather';
 import { UNDERSEA_CABLES } from '@/config';
 import type { StartupHub, Accelerator, TechHQ, CloudRegion } from '@/config/tech-geo';
@@ -11,7 +11,7 @@ import { fetchHotspotContext, formatArticleDate, extractDomain, type GdeltArticl
 import { getNaturalEventIcon } from '@/services/eonet';
 import { getHotspotEscalation, getEscalationChange24h } from '@/services/hotspot-escalation';
 
-export type PopupType = 'conflict' | 'hotspot' | 'earthquake' | 'weather' | 'base' | 'waterway' | 'apt' | 'cyberThreat' | 'nuclear' | 'economic' | 'irradiator' | 'pipeline' | 'cable' | 'cable-advisory' | 'repair-ship' | 'outage' | 'datacenter' | 'datacenterCluster' | 'ais' | 'protest' | 'protestCluster' | 'flight' | 'militaryFlight' | 'militaryVessel' | 'militaryFlightCluster' | 'militaryVesselCluster' | 'natEvent' | 'port' | 'spaceport' | 'mineral' | 'startupHub' | 'cloudRegion' | 'techHQ' | 'accelerator' | 'techEvent' | 'techHQCluster' | 'techEventCluster' | 'techActivity' | 'geoActivity' | 'stockExchange' | 'financialCenter' | 'centralBank' | 'commodityHub';
+export type PopupType = 'conflict' | 'hotspot' | 'earthquake' | 'weather' | 'base' | 'waterway' | 'apt' | 'cyberThreat' | 'nuclear' | 'economic' | 'irradiator' | 'pipeline' | 'cable' | 'cable-advisory' | 'repair-ship' | 'outage' | 'datacenter' | 'datacenterCluster' | 'ais' | 'protest' | 'protestCluster' | 'flight' | 'cubaFlight' | 'militaryFlight' | 'militaryVessel' | 'militaryFlightCluster' | 'militaryVesselCluster' | 'natEvent' | 'port' | 'spaceport' | 'mineral' | 'startupHub' | 'cloudRegion' | 'techHQ' | 'accelerator' | 'techEvent' | 'techHQCluster' | 'techEventCluster' | 'techActivity' | 'geoActivity' | 'stockExchange' | 'financialCenter' | 'centralBank' | 'commodityHub';
 
 interface TechEventPopupData {
   id: string;
@@ -117,7 +117,7 @@ interface DatacenterClusterData {
 
 interface PopupData {
   type: PopupType;
-  data: ConflictZone | Hotspot | Earthquake | WeatherAlert | MilitaryBase | StrategicWaterway | APTGroup | CyberThreat | NuclearFacility | EconomicCenter | GammaIrradiator | Pipeline | UnderseaCable | CableAdvisory | RepairShip | InternetOutage | AIDataCenter | AisDisruptionEvent | SocialUnrestEvent | AirportDelayAlert | MilitaryFlight | MilitaryVessel | MilitaryFlightCluster | MilitaryVesselCluster | NaturalEvent | Port | Spaceport | CriticalMineralProject | StartupHub | CloudRegion | TechHQ | Accelerator | TechEventPopupData | TechHQClusterData | TechEventClusterData | ProtestClusterData | DatacenterClusterData | TechHubActivity | GeoHubActivity | StockExchangePopupData | FinancialCenterPopupData | CentralBankPopupData | CommodityHubPopupData;
+  data: ConflictZone | Hotspot | Earthquake | WeatherAlert | MilitaryBase | StrategicWaterway | APTGroup | CyberThreat | NuclearFacility | EconomicCenter | GammaIrradiator | Pipeline | UnderseaCable | CableAdvisory | RepairShip | InternetOutage | AIDataCenter | AisDisruptionEvent | SocialUnrestEvent | AirportDelayAlert | FlightRoute | MilitaryFlight | MilitaryVessel | MilitaryFlightCluster | MilitaryVesselCluster | NaturalEvent | Port | Spaceport | CriticalMineralProject | StartupHub | CloudRegion | TechHQ | Accelerator | TechEventPopupData | TechHQClusterData | TechEventClusterData | ProtestClusterData | DatacenterClusterData | TechHubActivity | GeoHubActivity | StockExchangePopupData | FinancialCenterPopupData | CentralBankPopupData | CommodityHubPopupData;
   relatedNews?: NewsItem[];
   x: number;
   y: number;
@@ -288,6 +288,8 @@ export class MapPopup {
         return this.renderProtestClusterPopup(data.data as ProtestClusterData);
       case 'flight':
         return this.renderFlightPopup(data.data as AirportDelayAlert);
+      case 'cubaFlight':
+        return this.renderCubaFlightPopup(data.data as FlightRoute);
       case 'militaryFlight':
         return this.renderMilitaryFlightPopup(data.data as MilitaryFlight);
       case 'militaryVessel':
@@ -962,6 +964,58 @@ export class MapPopup {
             <span class="stat-label">${t('popups.updated')}</span>
             <span class="stat-value">${delay.updatedAt.toLocaleTimeString()}</span>
           </div>
+        </div>
+      </div>
+    `;
+  }
+
+  private renderCubaFlightPopup(route: FlightRoute): string {
+    const flights = route.flights || [];
+    const enRouteCount = flights.filter((flight) => flight.status === 'en_route').length;
+    const formatTime = (value?: string): string => {
+      if (!value) return '—';
+      const date = new Date(value);
+      return Number.isNaN(date.getTime())
+        ? escapeHtml(value)
+        : escapeHtml(date.toLocaleString([], {
+          month: 'short',
+          day: 'numeric',
+          hour: '2-digit',
+          minute: '2-digit',
+        }));
+    };
+    const flightRows = flights.slice(0, 8).map((flight) => `
+      <li>
+        <strong>${escapeHtml(flight.ident)}</strong>
+        · ${flight.status === 'en_route' ? 'EN ROUTE' : 'SCHEDULED'}
+        · ETA ${formatTime(flight.estimatedIn)}
+        ${flight.aircraftType ? ` · ${escapeHtml(flight.aircraftType)}` : ''}
+      </li>
+    `).join('');
+    const moreCount = Math.max(0, flights.length - 8);
+
+    return `
+      <div class="popup-header flight">
+        <span class="popup-icon">✈️</span>
+        <span class="popup-title">${escapeHtml(route.origin.iata)} → ${escapeHtml(route.destination.iata)}</span>
+        <span class="popup-badge ${enRouteCount > 0 ? 'high' : ''}">${route.flightCount || flights.length || 1} FLIGHT${(route.flightCount || flights.length) === 1 ? '' : 'S'}</span>
+        <button class="popup-close">×</button>
+      </div>
+      <div class="popup-body">
+        <div class="popup-subtitle">${escapeHtml(route.origin.city)} → ${escapeHtml(route.destination.city)}</div>
+        ${flights.length > 0 ? `<ul class="cluster-list">${flightRows}</ul>` : ''}
+        ${moreCount > 0 ? `<p class="popup-more">+${moreCount} more flights</p>` : ''}
+        <div class="popup-stats">
+          <div class="popup-stat">
+            <span class="stat-label">${t('popups.source')}</span>
+            <span class="stat-value">${route.source === 'flightaware' ? 'FlightAware AeroAPI' : 'Static fallback'}</span>
+          </div>
+          ${route.fetchedAt ? `
+            <div class="popup-stat">
+              <span class="stat-label">${t('popups.updated')}</span>
+              <span class="stat-value">${formatTime(route.fetchedAt)}</span>
+            </div>
+          ` : ''}
         </div>
       </div>
     `;

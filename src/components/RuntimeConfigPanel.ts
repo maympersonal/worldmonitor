@@ -30,6 +30,7 @@ const SIGNUP_URLS: Partial<Record<RuntimeSecretKey, string>> = {
   OTX_API_KEY: 'https://otx.alienvault.com/',
   ABUSEIPDB_API_KEY: 'https://www.abuseipdb.com/login',
   WINGBITS_API_KEY: 'https://wingbits.com/register',
+  FLIGHTAWARE_AEROAPI_KEY: 'https://www.flightaware.com/aeroapi/portal/',
   AISSTREAM_API_KEY: 'https://aisstream.io/authenticate',
   OPENSKY_CLIENT_ID: 'https://opensky-network.org/login?view=registration',
   OPENSKY_CLIENT_SECRET: 'https://opensky-network.org/login?view=registration',

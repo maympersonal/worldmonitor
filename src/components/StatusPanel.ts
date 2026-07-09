@@ -34,12 +34,12 @@ const WORLD_FEEDS = new Set([
   'Politics', 'Middleeast', 'Tech', 'Ai', 'Finance',
   'Gov', 'Intel', 'Layoffs', 'Thinktanks', 'Energy',
   'Polymarket', 'Weather', 'NetBlocks', 'Shipping', 'Military',
-  'Cyber Threats'
+  'Cyber Threats', 'Flights'
 ]);
 const WORLD_APIS = new Set([
   'RSS2JSON', 'Finnhub', 'CoinGecko', 'Polymarket', 'USGS', 'FRED',
   'AISStream', 'GDELT Doc', 'EIA', 'USASpending', 'PizzINT', 'FIRMS',
-  'Cyber Threats API'
+  'Cyber Threats API', 'FlightAware'
 ]);
 
 import { t } from '../services/i18n';

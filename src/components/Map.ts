@@ -4,7 +4,7 @@ import { escapeHtml } from '@/utils/sanitize';
 import { getCSSColor } from '@/utils';
 import type { Topology, GeometryCollection } from 'topojson-specification';
 import type { Feature, Geometry } from 'geojson';
-import type { MapLayers, Hotspot, NewsItem, Earthquake, InternetOutage, RelatedAsset, AssetType, AisDisruptionEvent, AisDensityZone, CableAdvisory, RepairShip, SocialUnrestEvent, AirportDelayAlert, MilitaryFlight, MilitaryVessel, MilitaryFlightCluster, MilitaryVesselCluster, NaturalEvent, CyberThreat, FlightRoute } from '@/types';
+import type { MapLayers, Hotspot, NewsItem, Earthquake, InternetOutage, RelatedAsset, AssetType, AisDisruptionEvent, AisDensityZone, CableAdvisory, RepairShip, SocialUnrestEvent, AirportDelayAlert, MilitaryFlight, MilitaryVessel, MilitaryFlightCluster, MilitaryVesselCluster, NaturalEvent, CyberThreat, FlightRoute, FlightRouteEndpoint } from '@/types';
 import type { TechHubActivity } from '@/services/tech-activity';
 import type { GeoHubActivity } from '@/services/geo-activity';
 import { getNaturalEventIcon } from '@/services/eonet';
@@ -123,6 +123,8 @@ export class MapComponent {
   private repairShips: RepairShip[] = [];
   private protests: SocialUnrestEvent[] = [];
   private flightDelays: AirportDelayAlert[] = [];
+  private cubaFlightRoutes: FlightRoute[] = CUBA_FLIGHT_ROUTES;
+  private cubaFlightAirports: FlightRouteEndpoint[] = CUBA_FLIGHT_AIRPORTS;
   private militaryFlights: MilitaryFlight[] = [];
   private militaryFlightClusters: MilitaryFlightCluster[] = [];
   private militaryVessels: MilitaryVessel[] = [];
@@ -1125,8 +1127,9 @@ export class MapComponent {
     if (!this.dynamicLayerGroup) return;
     const routeGroup = this.dynamicLayerGroup.append('g').attr('class', 'flight-routes');
 
-    CUBA_FLIGHT_ROUTES.forEach((route) => {
-      const source = projection([route.origin.lon, route.origin.lat]);
+    this.cubaFlightRoutes.forEach((route) => {
+      const sourcePosition = route.currentPosition || route.origin;
+      const source = projection([sourcePosition.lon, sourcePosition.lat]);
       const target = projection([route.destination.lon, route.destination.lat]);
       if (!source || !target) return;
 
@@ -1138,7 +1141,7 @@ export class MapComponent {
       const controlY = (source[1] + target[1]) / 2 + (dx / length) * lift;
       const stroke = this.getFlightRouteStroke(route);
 
-      routeGroup
+      const path = routeGroup
         .append('path')
         .attr('class', `flight-route-path flight-route-${route.market}`)
         .attr('d', `M${source[0]},${source[1]} Q${controlX},${controlY} ${target[0]},${target[1]}`)
@@ -1147,12 +1150,25 @@ export class MapComponent {
         .attr('stroke-width', route.priority === 1 ? 2.8 : route.priority === 2 ? 2 : 1.4)
         .attr('stroke-opacity', route.priority === 1 ? 0.85 : 0.62)
         .attr('stroke-linecap', 'round')
-        .attr('pointer-events', 'stroke')
+        .attr('pointer-events', 'stroke');
+
+      path
         .append('title')
-        .text(`${route.origin.city} (${route.origin.iata}) -> ${route.destination.city} (${route.destination.iata})`);
+        .text(`${route.origin.city} (${route.origin.iata}) -> ${route.destination.city} (${route.destination.iata})${route.note ? ` · ${route.note}` : ''}`);
+
+      path.on('click', (event: MouseEvent) => {
+        event.stopPropagation();
+        const rect = this.container.getBoundingClientRect();
+        this.popup.show({
+          type: 'cubaFlight',
+          data: route,
+          x: event.clientX - rect.left,
+          y: event.clientY - rect.top,
+        });
+      });
     });
 
-    CUBA_FLIGHT_AIRPORTS.forEach((airport) => {
+    this.cubaFlightAirports.forEach((airport) => {
       const pos = projection([airport.lon, airport.lat]);
       if (!pos) return;
       const isCuba = airport.country === 'Cuba';
@@ -3442,6 +3458,12 @@ export class MapComponent {
 
   public setFlightDelays(delays: AirportDelayAlert[]): void {
     this.flightDelays = delays;
+    this.render();
+  }
+
+  public setCubaFlightRoutes(routes: FlightRoute[], airports: FlightRouteEndpoint[]): void {
+    this.cubaFlightRoutes = routes;
+    this.cubaFlightAirports = airports;
     this.render();
   }
 

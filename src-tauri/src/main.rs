@@ -25,7 +25,7 @@ const MENU_FILE_SETTINGS_ID: &str = "file.settings";
 const MENU_FILE_CUBA_PROVINCES_ID: &str = "file.cuba_provinces";
 const MENU_HELP_GITHUB_ID: &str = "help.github";
 const MENU_HELP_DEVTOOLS_ID: &str = "help.devtools";
-const SUPPORTED_SECRET_KEYS: [&str; 18] = [
+const SUPPORTED_SECRET_KEYS: [&str; 19] = [
     "HF_TOKEN",
     "DASHSCOPE_API_KEY",
     "FRED_API_KEY",
@@ -36,6 +36,7 @@ const SUPPORTED_SECRET_KEYS: [&str; 18] = [
     "OTX_API_KEY",
     "ABUSEIPDB_API_KEY",
     "WINGBITS_API_KEY",
+    "FLIGHTAWARE_AEROAPI_KEY",
     "WS_RELAY_URL",
     "VITE_OPENSKY_RELAY_URL",
     "OPENSKY_CLIENT_ID",

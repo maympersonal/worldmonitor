@@ -3338,6 +3338,7 @@ The dashboard fetches data from various public APIs and data sources:
 | AISStream | Live vessel positions | Yes (relay) |
 | OpenSky Network | Military aircraft tracking | Yes (free) |
 | Wingbits | Aircraft enrichment (owner, operator) | Yes (free) |
+| FlightAware AeroAPI | Current and scheduled flights inbound to Cuba | Yes (usage-based) |
 | PizzINT | Pentagon-area activity metrics | No |
 
 ### Optional API Keys
@@ -3355,6 +3356,7 @@ Some features require API credentials. Without them, the corresponding layer is 
 | `CLOUDFLARE_API_TOKEN` | Internet outages | Free Cloudflare account with Radar access |
 | `ACLED_ACCESS_TOKEN` | Protest data (server-side) | Free registration at acleddata.com |
 | `WINGBITS_API_KEY` | Aircraft enrichment | Contact [Wingbits](https://wingbits.com) for API access |
+| `FLIGHTAWARE_AEROAPI_KEY` | Flights inbound to Cuba | Create an AeroAPI key in the [FlightAware portal](https://www.flightaware.com/aeroapi/portal/) |
 | `HF_TOKEN` | AI summaries, country briefs, headline classification | Create a token with Inference Providers access at [huggingface.co/settings/tokens](https://huggingface.co/settings/tokens) |
 | `DASHSCOPE_API_KEY` | Optional fallback AI provider | Create a Model Studio key in Alibaba Cloud DashScope |
 

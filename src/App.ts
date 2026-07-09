@@ -12,7 +12,7 @@ import {
   STORAGE_KEYS,
   SITE_VARIANT,
 } from '@/config';
-import { fetchCategoryFeeds, fetchMultipleStocks, fetchCrypto, fetchPredictions, fetchEarthquakes, fetchWeatherAlerts, fetchFredData, fetchInternetOutages, isOutagesConfigured, fetchAisSignals, initAisStream, getAisStatus, disconnectAisStream, isAisConfigured, fetchCableActivity, fetchProtestEvents, getProtestStatus, fetchFlightDelays, fetchMilitaryFlights, fetchMilitaryVessels, initMilitaryVesselStream, isMilitaryVesselTrackingConfigured, initDB, updateBaseline, calculateDeviation, addToSignalHistory, saveSnapshot, cleanOldSnapshots, analysisWorker, fetchPizzIntStatus, fetchGdeltTensions, fetchNaturalEvents, fetchRecentAwards, fetchOilAnalytics, fetchCyberThreats, drainTrendingSignals, fetchMonitorGoogleNews } from '@/services';
+import { fetchCategoryFeeds, fetchMultipleStocks, fetchCrypto, fetchPredictions, fetchEarthquakes, fetchWeatherAlerts, fetchFredData, fetchInternetOutages, isOutagesConfigured, fetchAisSignals, initAisStream, getAisStatus, disconnectAisStream, isAisConfigured, fetchCableActivity, fetchProtestEvents, getProtestStatus, fetchFlightDelays, fetchCubaInboundFlights, fetchMilitaryFlights, fetchMilitaryVessels, initMilitaryVesselStream, isMilitaryVesselTrackingConfigured, initDB, updateBaseline, calculateDeviation, addToSignalHistory, saveSnapshot, cleanOldSnapshots, analysisWorker, fetchPizzIntStatus, fetchGdeltTensions, fetchNaturalEvents, fetchRecentAwards, fetchOilAnalytics, fetchCyberThreats, drainTrendingSignals, fetchMonitorGoogleNews } from '@/services';
 import { fetchCountryMarkets } from '@/services/polymarket';
 import { mlWorker } from '@/services/ml-worker';
 import { clusterNewsHybrid } from '@/services/clustering';
@@ -723,6 +723,7 @@ export class App {
       ucdpEvents: ['ucdp_events'],
       displacement: ['unhcr'],
       climate: ['climate'],
+      flights: ['flightaware'],
     };
 
     for (const [layer, sourceIds] of Object.entries(layerToSource)) {
@@ -738,6 +739,9 @@ export class App {
     }
     if (isOutagesConfigured() === false) {
       dataFreshness.setEnabled('outages', false);
+    }
+    if (!isFeatureAvailable('flightAwareCubaFlights')) {
+      dataFreshness.setEnabled('flightaware', false);
     }
   }
 
@@ -760,6 +764,7 @@ export class App {
         ucdpEvents: ['ucdp_events'],
         displacement: ['unhcr'],
         climate: ['climate'],
+        flights: ['flightaware'],
       };
       const sourceIds = layerToSource[layer];
       if (sourceIds) {
@@ -781,7 +786,7 @@ export class App {
       }
 
       // Load data when layer is enabled (if not already loaded)
-      if (enabled && !(SITE_VARIANT === 'full' && layer === 'flights')) {
+      if (enabled) {
         this.loadDataForLayer(layer);
       }
     });
@@ -1809,24 +1814,6 @@ export class App {
               <span class="variant-icon">🌍</span>
               <span class="variant-label">${t('header.world')}</span>
             </a>
-            <span class="variant-divider"></span>
-            <a href="${this.isDesktopApp ? '#' : (SITE_VARIANT === 'tech' ? '#' : 'https://tech.worldmonitor.app')}"
-               class="variant-option ${SITE_VARIANT === 'tech' ? 'active' : ''}"
-               data-variant="tech"
-               ${!this.isDesktopApp && SITE_VARIANT !== 'tech' ? 'target="_blank" rel="noopener"' : ''}
-               title="${t('header.tech')}${SITE_VARIANT === 'tech' ? ` ${t('common.currentVariant')}` : ''}">
-              <span class="variant-icon">💻</span>
-              <span class="variant-label">${t('header.tech')}</span>
-            </a>
-            <span class="variant-divider"></span>
-            <a href="${this.isDesktopApp ? '#' : (SITE_VARIANT === 'finance' ? '#' : 'https://finance.worldmonitor.app')}"
-               class="variant-option ${SITE_VARIANT === 'finance' ? 'active' : ''}"
-               data-variant="finance"
-               ${!this.isDesktopApp && SITE_VARIANT !== 'finance' ? 'target="_blank" rel="noopener"' : ''}
-               title="${t('header.finance')}${SITE_VARIANT === 'finance' ? ` ${t('common.currentVariant')}` : ''}">
-              <span class="variant-icon">📈</span>
-              <span class="variant-label">${t('header.finance')}</span>
-            </a>
           </div>
           <span class="logo">ottc</span><span class="version">v${__APP_VERSION__}</span>
           <a href="https://x.com/eliehabib" target="_blank" rel="noopener" class="credit-link">
@@ -2705,12 +2692,13 @@ export class App {
     // Sources modal
     this.setupSourcesModal();
 
-    // Variant switcher: switch variant locally on desktop (reload with new config)
+    // Desktop builds may return to the World variant, but Tech and Finance
+    // are intentionally not exposed as switchable destinations.
     if (this.isDesktopApp) {
       this.container.querySelectorAll<HTMLAnchorElement>('.variant-option').forEach(link => {
         link.addEventListener('click', (e) => {
           const variant = link.dataset.variant;
-          if (variant && variant !== SITE_VARIANT) {
+          if (variant === 'full' && variant !== SITE_VARIANT) {
             e.preventDefault();
             localStorage.setItem('worldmonitor-variant', variant);
             window.location.reload();
@@ -3201,7 +3189,15 @@ export class App {
     if (this.mapLayers.weather) tasks.push({ name: 'weather', task: runGuarded('weather', () => this.loadWeatherAlerts()) });
     if (this.mapLayers.ais) tasks.push({ name: 'ais', task: runGuarded('ais', () => this.loadAisSignals()) });
     if (this.mapLayers.cables) tasks.push({ name: 'cables', task: runGuarded('cables', () => this.loadCableActivity()) });
-    if (SITE_VARIANT !== 'full' && this.mapLayers.flights) tasks.push({ name: 'flights', task: runGuarded('flights', () => this.loadFlightDelays()) });
+    if (this.mapLayers.flights) {
+      tasks.push({
+        name: 'flights',
+        task: runGuarded(
+          'flights',
+          () => SITE_VARIANT === 'full' ? this.loadCubaFlightRoutes() : this.loadFlightDelays()
+        ),
+      });
+    }
     if (CYBER_LAYER_ENABLED && this.mapLayers.cyberThreats) tasks.push({ name: 'cyberThreats', task: runGuarded('cyberThreats', () => this.loadCyberThreats()) });
     if (this.mapLayers.techEvents || SITE_VARIANT === 'tech') tasks.push({ name: 'techEvents', task: runGuarded('techEvents', () => this.loadTechEvents()) });
 
@@ -3258,7 +3254,7 @@ export class App {
             break;
           case 'flights':
             if (SITE_VARIANT === 'full') {
-              this.map?.setLayerReady('flights', true);
+              await this.loadCubaFlightRoutes();
             } else {
               await this.loadFlightDelays();
             }
@@ -4293,6 +4289,44 @@ export class App {
     }
   }
 
+  private async loadCubaFlightRoutes(): Promise<void> {
+    const result = await fetchCubaInboundFlights();
+    this.map?.setCubaFlightRoutes(result.routes, result.airports);
+    this.map?.setLayerReady('flights', result.source === 'flightaware' || result.routes.length > 0);
+
+    if (result.source === 'flightaware') {
+      dataFreshness.setEnabled('flightaware', true);
+      const status = result.partial || result.stale ? 'warning' : 'ok';
+      this.statusPanel?.updateFeed('Flights', {
+        status,
+        itemCount: result.flightCount,
+        errorMessage: result.partial
+          ? 'FlightAware returned partial flight coverage'
+          : result.stale
+            ? 'Using stale FlightAware cache'
+            : undefined,
+      });
+      this.statusPanel?.updateApi('FlightAware', { status });
+      dataFreshness.recordUpdate('flightaware', result.flightCount);
+      return;
+    }
+
+    this.statusPanel?.updateFeed('Flights', {
+      status: 'warning',
+      itemCount: result.routes.length,
+      errorMessage: result.reason || 'Using static Cuba flight routes',
+    });
+    this.statusPanel?.updateApi('FlightAware', {
+      status: result.configured ? 'error' : 'disabled',
+    });
+    if (result.configured) {
+      dataFreshness.setEnabled('flightaware', true);
+      dataFreshness.recordError('flightaware', result.reason || 'FlightAware data unavailable');
+    } else {
+      dataFreshness.setEnabled('flightaware', false);
+    }
+  }
+
   private async loadMilitary(): Promise<void> {
     // Use cached data if available (from loadIntelligenceSignals)
     if (this.intelligenceCache.military) {
@@ -4754,7 +4788,11 @@ export class App {
     // this.scheduleRefresh('firms', () => this.loadFirmsData(), 30 * 60 * 1000);
     this.scheduleRefresh('ais', () => this.loadAisSignals(), REFRESH_INTERVALS.ais, () => this.mapLayers.ais);
     this.scheduleRefresh('cables', () => this.loadCableActivity(), 30 * 60 * 1000, () => this.mapLayers.cables);
-    this.scheduleRefresh('flights', () => this.loadFlightDelays(), 10 * 60 * 1000, () => SITE_VARIANT !== 'full' && this.mapLayers.flights);
+    if (SITE_VARIANT === 'full') {
+      this.scheduleRefresh('flights', () => this.loadCubaFlightRoutes(), 30 * 60 * 1000, () => this.mapLayers.flights);
+    } else {
+      this.scheduleRefresh('flights', () => this.loadFlightDelays(), 10 * 60 * 1000, () => this.mapLayers.flights);
+    }
     this.scheduleRefresh('cyberThreats', () => {
       this.cyberThreatsCache = null;
       return this.loadCyberThreats();

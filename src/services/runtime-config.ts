@@ -12,6 +12,7 @@ export type RuntimeSecretKey =
   | 'OTX_API_KEY'
   | 'ABUSEIPDB_API_KEY'
   | 'WINGBITS_API_KEY'
+  | 'FLIGHTAWARE_AEROAPI_KEY'
   | 'WS_RELAY_URL'
   | 'VITE_OPENSKY_RELAY_URL'
   | 'OPENSKY_CLIENT_ID'
@@ -32,6 +33,7 @@ export type RuntimeFeatureId =
   | 'alienvaultOtxThreatIntel'
   | 'abuseIpdbThreatIntel'
   | 'wingbitsEnrichment'
+  | 'flightAwareCubaFlights'
   | 'aisRelay'
   | 'openskyRelay'
   | 'finnhubMarkets'
@@ -71,6 +73,7 @@ const defaultToggles: Record<RuntimeFeatureId, boolean> = {
   alienvaultOtxThreatIntel: true,
   abuseIpdbThreatIntel: true,
   wingbitsEnrichment: true,
+  flightAwareCubaFlights: true,
   aisRelay: true,
   openskyRelay: true,
   finnhubMarkets: true,
@@ -147,6 +150,13 @@ export const RUNTIME_FEATURES: RuntimeFeatureDefinition[] = [
     description: 'Military flight operator/aircraft enrichment metadata.',
     requiredSecrets: ['WINGBITS_API_KEY'],
     fallback: 'Flight map still renders with heuristic-only classification.',
+  },
+  {
+    id: 'flightAwareCubaFlights',
+    name: 'FlightAware Cuba flights',
+    description: 'Current and scheduled inbound flights for the Cuba routes map.',
+    requiredSecrets: ['FLIGHTAWARE_AEROAPI_KEY'],
+    fallback: 'The map keeps the curated static Cuba routes.',
   },
   {
     id: 'aisRelay',
@@ -448,7 +458,7 @@ export async function loadDesktopSecrets(): Promise<void> {
 
   try {
     // Single batch call to read all keychain secrets at once.
-    // This triggers only ONE macOS Keychain prompt instead of 18 individual ones.
+    // This triggers only ONE macOS Keychain prompt instead of 19 individual ones.
     const allSecrets = await invokeTauri<Record<string, string>>('get_all_secrets');
 
     const syncResults = await Promise.allSettled(

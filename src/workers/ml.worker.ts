@@ -8,7 +8,9 @@ import { MODEL_CONFIGS, type ModelConfig } from '@/config/ml-config';
 
 // Configure transformers.js
 env.allowLocalModels = false;
-env.useBrowserCache = true;
+// Cache Storage is unavailable on insecure LAN origins (for example http://10.x.x.x).
+// Transformers.js can still download and use a model for the current session without it.
+env.useBrowserCache = typeof globalThis.caches !== 'undefined';
 
 // Message types
 interface InitMessage {

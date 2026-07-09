@@ -5,6 +5,16 @@ export const config = {
   runtime: 'edge',
 };
 
+const LOCALAI_API_URL =
+  String(process.env.LOCALAI_API_URL || '').trim();
+const LOCALAI_MODEL =
+  String(process.env.LOCALAI_MODEL || '').trim();
+const LOCALAI_API_KEY =
+  String(process.env.LOCALAI_API_KEY || '').trim();
+const LOCALAI_REQUEST_TIMEOUT_MS = Math.max(
+  1000,
+  Number(process.env.LOCALAI_REQUEST_TIMEOUT_MS || 25000) || 25000
+);
 const DASHSCOPE_API_URL =
   String(process.env.DASHSCOPE_API_URL || '').trim()
   || 'https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions';
@@ -56,6 +66,17 @@ function getHuggingFaceApiKey() {
 }
 
 function getAiProvider() {
+  if (LOCALAI_API_URL && LOCALAI_MODEL) {
+    return {
+      id: 'localai',
+      label: 'LocalAI',
+      apiUrl: LOCALAI_API_URL,
+      apiKey: LOCALAI_API_KEY,
+      model: LOCALAI_MODEL,
+      timeoutMs: LOCALAI_REQUEST_TIMEOUT_MS,
+    };
+  }
+
   const huggingFaceKey = getHuggingFaceApiKey();
   if (huggingFaceKey) {
     return {
@@ -200,21 +221,42 @@ async function callAiProviderChat(provider, {
   topP = 0.9,
   responseFormat,
 }) {
-  const response = await fetch(provider.apiUrl, {
-    method: 'POST',
-    headers: {
-      Authorization: `Bearer ${provider.apiKey}`,
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify({
-      model: provider.model,
-      messages,
-      temperature,
-      max_tokens: maxTokens,
-      top_p: topP,
-      ...(responseFormat ? { response_format: responseFormat } : {}),
-    }),
-  });
+  const headers = {
+    'Content-Type': 'application/json',
+  };
+  if (provider.apiKey) {
+    headers.Authorization = `Bearer ${provider.apiKey}`;
+  }
+
+  const controller = new AbortController();
+  const timeoutMs = Number(provider.timeoutMs) || 30000;
+  const timeout = setTimeout(() => controller.abort(), timeoutMs);
+  let response;
+  try {
+    response = await fetch(provider.apiUrl, {
+      method: 'POST',
+      headers,
+      signal: controller.signal,
+      body: JSON.stringify({
+        model: provider.model,
+        messages,
+        temperature,
+        max_tokens: maxTokens,
+        top_p: topP,
+        ...(responseFormat ? { response_format: responseFormat } : {}),
+      }),
+    });
+  } catch (error) {
+    if (controller.signal.aborted) {
+      const timeoutError = new Error(`${provider.label} timed out after ${timeoutMs}ms`);
+      timeoutError.status = 504;
+      timeoutError.provider = provider.id;
+      throw timeoutError;
+    }
+    throw error;
+  } finally {
+    clearTimeout(timeout);
+  }
 
   const rawText = await response.text();
   let payload = null;
@@ -713,7 +755,7 @@ export default async function handler(request) {
       {
         fallback: true,
         skipped: true,
-        reason: 'HF_TOKEN or DASHSCOPE_API_KEY not configured',
+        reason: 'LOCALAI_API_URL/LOCALAI_MODEL, HF_TOKEN, or DASHSCOPE_API_KEY not configured',
       },
       200,
       corsHeaders

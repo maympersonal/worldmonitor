@@ -31,6 +31,7 @@ const keyBackedFeatures: RuntimeFeatureId[] = [
   'aisRelay',
   'openskyRelay',
   'wingbitsEnrichment',
+  'flightAwareCubaFlights',
   'energyEia',
 ];
 
@@ -68,9 +69,9 @@ export const DESKTOP_PARITY_FEATURES: DesktopParityFeature[] = [
   {
     id: 'map-layers-core',
     panel: 'Map layers (conflicts/outages/cyber/ais/flights)',
-    serviceFiles: ['src/services/conflicts.ts', 'src/services/outages.ts', 'src/services/cyber-threats.ts', 'src/services/ais.ts', 'src/services/military-flights.ts'],
-    apiRoutes: ['/api/acled-conflict', '/api/cloudflare-outages', '/api/cyber-threats', '/api/ais-snapshot', '/api/opensky'],
-    apiHandlers: ['api/acled-conflict.js', 'api/cloudflare-outages.js', 'api/cyber-threats.js', 'api/ais-snapshot.js', 'api/opensky.js'],
+    serviceFiles: ['src/services/conflicts.ts', 'src/services/outages.ts', 'src/services/cyber-threats.ts', 'src/services/ais.ts', 'src/services/military-flights.ts', 'src/services/cuba-flights.ts'],
+    apiRoutes: ['/api/acled-conflict', '/api/cloudflare-outages', '/api/cyber-threats', '/api/ais-snapshot', '/api/opensky', '/api/flightaware-cuba'],
+    apiHandlers: ['api/acled-conflict.js', 'api/cloudflare-outages.js', 'api/cyber-threats.js', 'api/ais-snapshot.js', 'api/opensky.js', 'api/flightaware-cuba.js'],
     locality: 'api-key',
     fallback: 'Unavailable feeds are disabled while map rendering remains active for local/static layers.',
     priority: 1,

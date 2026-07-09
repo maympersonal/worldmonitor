@@ -727,15 +727,36 @@ export interface MonitoredAirport {
   region: AirportRegion;
 }
 
-export type FlightRouteMarket = 'us' | 'canada' | 'europe' | 'latin_america' | 'caribbean';
+export type FlightRouteMarket = 'us' | 'canada' | 'europe' | 'latin_america' | 'caribbean' | 'other';
 
 export interface FlightRouteEndpoint {
   iata: string;
+  icao?: string;
   name: string;
   city: string;
   country: string;
   lat: number;
   lon: number;
+}
+
+export interface FlightRoutePosition {
+  lat: number;
+  lon: number;
+  altitude?: number;
+  groundspeed?: number;
+  heading?: number;
+  timestamp?: string;
+}
+
+export interface FlightRouteFlight {
+  id: string;
+  ident: string;
+  status: 'en_route' | 'scheduled';
+  aircraftType?: string;
+  registration?: string;
+  scheduledOut?: string;
+  estimatedIn?: string;
+  actualOut?: string;
 }
 
 export interface FlightRoute {
@@ -745,6 +766,11 @@ export interface FlightRoute {
   market: FlightRouteMarket;
   priority: 1 | 2 | 3;
   note?: string;
+  source?: 'static' | 'flightaware';
+  flights?: FlightRouteFlight[];
+  flightCount?: number;
+  currentPosition?: FlightRoutePosition;
+  fetchedAt?: string;
 }
 
 // Military Flight Tracking Types

@@ -39,6 +39,7 @@ function route(
     market,
     priority,
     note,
+    source: 'static',
   };
 }
 

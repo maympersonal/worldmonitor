@@ -914,7 +914,7 @@ The `.env.example` file documents every variable with descriptions and registrat
 | **AI** | `GROQ_API_KEY`, `OPENROUTER_API_KEY` | 14,400 req/day (Groq), 50/day (OpenRouter) |
 | **Cache** | `UPSTASH_REDIS_REST_URL`, `UPSTASH_REDIS_REST_TOKEN` | 10K commands/day |
 | **Markets** | `FINNHUB_API_KEY`, `FRED_API_KEY`, `EIA_API_KEY` | All free tier |
-| **Tracking** | `WINGBITS_API_KEY`, `AISSTREAM_API_KEY` | Free |
+| **Tracking** | `WINGBITS_API_KEY`, `AISSTREAM_API_KEY`, `FLIGHTAWARE_AEROAPI_KEY` | Mixed |
 | **Geopolitical** | `ACLED_ACCESS_TOKEN`, `CLOUDFLARE_API_TOKEN`, `NASA_FIRMS_API_KEY` | Free for researchers |
 | **Relay** | `WS_RELAY_URL`, `VITE_WS_RELAY_URL`, `OPENSKY_CLIENT_ID/SECRET` | Self-hosted |
 | **Web auth** | `WORLD_MONITOR_AUTH_USERNAME`, `WORLD_MONITOR_AUTH_PASSWORD` | Optional |

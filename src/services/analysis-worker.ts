@@ -40,7 +40,8 @@ class AnalysisWorkerManager {
   private readyReject: ((error: Error) => void) | null = null;
   private readyTimeout: ReturnType<typeof setTimeout> | null = null;
 
-  private static readonly READY_TIMEOUT_MS = 10000; // 10 seconds to become ready
+  // Worker bundles can take longer to compile on the first Vite development load.
+  private static readonly READY_TIMEOUT_MS = 30000;
 
   /**
    * Initialize the worker. Called lazily on first use.

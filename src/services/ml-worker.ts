@@ -53,7 +53,8 @@ class MLWorkerManager {
   private readyResolve: (() => void) | null = null;
   private modelProgressCallbacks: Map<string, (progress: number) => void> = new Map();
 
-  private static readonly READY_TIMEOUT_MS = 10000;
+  // Worker bundles can take longer to compile on the first Vite development load.
+  private static readonly READY_TIMEOUT_MS = 30000;
 
   /**
    * Initialize the ML worker. Returns false if ML is not supported.

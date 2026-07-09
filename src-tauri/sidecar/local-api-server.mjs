@@ -126,7 +126,7 @@ globalThis.fetch = function ipv4Fetch(input, init) {
 const ALLOWED_ENV_KEYS = new Set([
   'HF_TOKEN', 'DASHSCOPE_API_KEY', 'FRED_API_KEY', 'EIA_API_KEY',
   'CLOUDFLARE_API_TOKEN', 'ACLED_ACCESS_TOKEN', 'URLHAUS_AUTH_KEY',
-  'OTX_API_KEY', 'ABUSEIPDB_API_KEY', 'WINGBITS_API_KEY', 'WS_RELAY_URL',
+  'OTX_API_KEY', 'ABUSEIPDB_API_KEY', 'WINGBITS_API_KEY', 'FLIGHTAWARE_AEROAPI_KEY', 'WS_RELAY_URL',
   'VITE_OPENSKY_RELAY_URL', 'OPENSKY_CLIENT_ID', 'OPENSKY_CLIENT_SECRET',
   'AISSTREAM_API_KEY', 'VITE_WS_RELAY_URL', 'FINNHUB_API_KEY', 'NASA_FIRMS_API_KEY',
 ]);
@@ -673,6 +673,20 @@ async function validateSecretAgainstProvider(key, rawValue, context = {}) {
       if (isAuthFailure(response.status, text)) return fail('Wingbits rejected this key');
       if (response.status >= 500) return fail(`Wingbits probe failed (${response.status})`);
       return ok('Wingbits key accepted');
+    }
+
+    case 'FLIGHTAWARE_AEROAPI_KEY': {
+      const response = await fetchWithTimeout('https://aeroapi.flightaware.com/aeroapi/account/usage', {
+        headers: {
+          Accept: 'application/json',
+          'x-apikey': value,
+        },
+      });
+      const text = await response.text();
+      if (isAuthFailure(response.status, text)) return fail('FlightAware rejected this AeroAPI key');
+      if (response.status === 429) return ok('FlightAware AeroAPI key accepted (rate limited)');
+      if (!response.ok) return fail(`FlightAware probe failed (${response.status})`);
+      return ok('FlightAware AeroAPI key verified');
     }
 
     case 'FINNHUB_API_KEY': {
