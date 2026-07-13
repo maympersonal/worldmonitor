@@ -290,7 +290,8 @@ export function classifyByKeyword(title: string, variant = 'full'): ThreatClassi
 }
 
 // Batched AI classification — collects headlines then sends one API call
-const BATCH_SIZE = 20;
+const LOCALAI_BATCH_SIZE = 3;
+const BATCH_SIZE = LOCALAI_BATCH_SIZE;
 const BATCH_DELAY_MS = 500;
 const AI_QUOTA_PAUSE_MS = 60 * 60 * 1000;
 let batchPaused = false;

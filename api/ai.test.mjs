@@ -36,7 +36,7 @@ async function loadHandler() {
   return module.default;
 }
 
-function makeSummaryRequest() {
+function makeSummaryRequest(overrides = {}) {
   return new Request('http://localhost:3000/api/ai', {
     method: 'POST',
     headers: {
@@ -46,6 +46,23 @@ function makeSummaryRequest() {
     body: JSON.stringify({
       task: 'summary',
       headlines: ['First test headline', 'Second test headline'],
+      ...overrides,
+    }),
+  });
+}
+
+function makeClassifyBatchRequest(titles, overrides = {}) {
+  return new Request('http://localhost:3000/api/ai', {
+    method: 'POST',
+    headers: {
+      origin: 'http://localhost:3000',
+      'content-type': 'application/json',
+    },
+    body: JSON.stringify({
+      task: 'classify_batch',
+      titles,
+      variant: 'full',
+      ...overrides,
     }),
   });
 }
@@ -55,7 +72,40 @@ test.afterEach(() => {
   for (const key of ENV_KEYS) setEnv(key, ORIGINAL_ENV[key]);
 });
 
-test('uses LocalAI before cloud providers and omits authorization when no key is configured', async () => {
+test('skips LocalAI unless the request explicitly opts in', async () => {
+  configureLocalAi();
+
+  globalThis.fetch = async () => {
+    throw new Error('LocalAI should not be called without opt-in');
+  };
+
+  const handler = await loadHandler();
+  const response = await handler(makeSummaryRequest());
+  const result = await response.json();
+
+  assert.equal(response.status, 200);
+  assert.equal(result.fallback, true);
+  assert.equal(result.skipped, true);
+});
+
+test('localAiOnly does not fall through to cloud providers', async () => {
+  for (const key of ENV_KEYS) delete process.env[key];
+  process.env.HF_TOKEN = 'cloud-token-that-must-not-be-used';
+
+  globalThis.fetch = async () => {
+    throw new Error('Cloud provider should not be called for localAiOnly requests');
+  };
+
+  const handler = await loadHandler();
+  const response = await handler(makeSummaryRequest({ allowLocalAi: true, localAiOnly: true }));
+  const result = await response.json();
+
+  assert.equal(response.status, 200);
+  assert.equal(result.fallback, true);
+  assert.equal(result.skipped, true);
+});
+
+test('uses LocalAI before cloud providers when explicitly requested and omits authorization when no key is configured', async () => {
   configureLocalAi();
   process.env.HF_TOKEN = 'cloud-token-that-must-not-be-used';
 
@@ -79,7 +129,7 @@ test('uses LocalAI before cloud providers and omits authorization when no key is
   };
 
   const handler = await loadHandler();
-  const response = await handler(makeSummaryRequest());
+  const response = await handler(makeSummaryRequest({ allowLocalAi: true, localAiOnly: true }));
   const result = await response.json();
   const upstreamBody = JSON.parse(capturedInit.body);
   const upstreamHeaders = new Headers(capturedInit.headers);
@@ -91,10 +141,93 @@ test('uses LocalAI before cloud providers and omits authorization when no key is
   assert.equal(upstreamBody.model, 'gemma-3-4b-it');
   assert.equal(upstreamBody.messages[0].role, 'system');
   assert.equal(upstreamBody.messages[1].role, 'user');
+  assert.equal(upstreamBody.max_tokens, 160);
   assert.equal(result.provider, 'localai');
   assert.equal(result.model, 'gemma-3-4b-it');
   assert.equal(result.summary, 'LocalAI generated summary.');
   assert.equal(result.tokens, 42);
+});
+
+test('caps LocalAI classification batches and token budget', async () => {
+  configureLocalAi();
+
+  let capturedInit;
+  globalThis.fetch = async (_url, init) => {
+    capturedInit = init;
+    return new Response(JSON.stringify({
+      choices: [{
+        message: {
+          role: 'assistant',
+          content: JSON.stringify({
+            results: [
+              { level: 'info', category: 'general' },
+              { level: 'low', category: 'economic' },
+              { level: 'medium', category: 'conflict' },
+            ],
+          }),
+        },
+      }],
+    }), {
+      status: 200,
+      headers: { 'content-type': 'application/json' },
+    });
+  };
+
+  const handler = await loadHandler();
+  const response = await handler(makeClassifyBatchRequest(
+    ['Headline one', 'Headline two', 'Headline three', 'Headline four'],
+    { allowLocalAi: true, localAiOnly: true }
+  ));
+  const result = await response.json();
+  const upstreamBody = JSON.parse(capturedInit.body);
+
+  assert.equal(response.status, 200);
+  assert.equal(upstreamBody.max_tokens, 120);
+  assert.equal(upstreamBody.temperature, 0);
+  assert.equal(upstreamBody.top_p, 1);
+  assert.deepEqual(upstreamBody.response_format, { type: 'json_object' });
+  assert.match(upstreamBody.messages[0].content, /Return only valid JSON/);
+  assert.match(upstreamBody.messages[1].content, /1\. Headline one/);
+  assert.match(upstreamBody.messages[1].content, /3\. Headline three/);
+  assert.doesNotMatch(upstreamBody.messages[1].content, /Headline four/);
+  assert.equal(result.results.length, 3);
+});
+
+test('serializes concurrent LocalAI requests', async () => {
+  configureLocalAi();
+
+  let activeRequests = 0;
+  let maxActiveRequests = 0;
+  globalThis.fetch = async () => {
+    activeRequests += 1;
+    maxActiveRequests = Math.max(maxActiveRequests, activeRequests);
+    await new Promise((resolve) => setTimeout(resolve, 20));
+    activeRequests -= 1;
+    return new Response(JSON.stringify({
+      choices: [{ message: { role: 'assistant', content: 'Queued summary.' } }],
+    }), {
+      status: 200,
+      headers: { 'content-type': 'application/json' },
+    });
+  };
+
+  const handler = await loadHandler();
+  const [first, second] = await Promise.all([
+    handler(makeSummaryRequest({
+      headlines: ['First queued headline', 'Second queued headline'],
+      allowLocalAi: true,
+      localAiOnly: true,
+    })),
+    handler(makeSummaryRequest({
+      headlines: ['Third queued headline', 'Fourth queued headline'],
+      allowLocalAi: true,
+      localAiOnly: true,
+    })),
+  ]);
+
+  assert.equal(first.status, 200);
+  assert.equal(second.status, 200);
+  assert.equal(maxActiveRequests, 1);
 });
 
 test('sends the optional LocalAI API key as a bearer token', async () => {
@@ -112,7 +245,7 @@ test('sends the optional LocalAI API key as a bearer token', async () => {
   };
 
   const handler = await loadHandler();
-  const response = await handler(makeSummaryRequest());
+  const response = await handler(makeSummaryRequest({ allowLocalAi: true, localAiOnly: true }));
   const result = await response.json();
 
   assert.equal(response.status, 200);
@@ -130,7 +263,7 @@ test('returns a gateway timeout response when LocalAI does not answer', async ()
   });
 
   const handler = await loadHandler();
-  const response = await handler(makeSummaryRequest());
+  const response = await handler(makeSummaryRequest({ allowLocalAi: true, localAiOnly: true }));
   const result = await response.json();
 
   assert.equal(response.status, 504);

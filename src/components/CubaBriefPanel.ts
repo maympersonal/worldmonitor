@@ -100,7 +100,7 @@ export class CubaBriefPanel extends Panel {
       titles,
       undefined,
       cubaContext,
-      { allowBrowserFallback }
+      { allowBrowserFallback, allowLocalAi: true }
     ).catch(() => null);
 
     if (!result?.summary) {

@@ -1,12 +1,12 @@
 /**
  * Summarization Service with Fallback Chain
  * Server-side Redis caching handles cross-user deduplication
- * Fallback: LocalAI -> Hugging Face -> Alibaba Qwen -> Browser T5
+ * Default fallback: Browser T5
+ * Opt-in fallback for Cuba brief: LocalAI -> Browser T5
  */
 
 import { mlWorker } from './ml-worker';
 import { SITE_VARIANT } from '@/config';
-import { isFeatureAvailable } from './runtime-config';
 
 export type SummarizationProvider = 'localai' | 'huggingface' | 'alibaba' | 'browser' | 'cache';
 
@@ -20,6 +20,7 @@ export type ProgressCallback = (step: number, total: number, message: string) =>
 
 export interface GenerateSummaryOptions {
   allowBrowserFallback?: boolean;
+  allowLocalAi?: boolean;
 }
 
 const REMOTE_QUOTA_COOLDOWN_MS = 60 * 60 * 1000;
@@ -57,17 +58,21 @@ function getRetryAfterSeconds(response: Response): number | undefined {
   return Number.isFinite(value) && value > 0 ? value : undefined;
 }
 
-function hasRemoteSummaryProvider(): boolean {
-  return isFeatureAvailable('aiHuggingFace') || isFeatureAvailable('aiAlibabaQwen');
-}
-
-async function tryRemoteSummary(headlines: string[], geoContext?: string): Promise<SummarizationResult | null> {
-  if (!hasRemoteSummaryProvider() || isRemoteQuotaCoolingDown()) return null;
+async function tryLocalAiSummary(headlines: string[], geoContext?: string): Promise<SummarizationResult | null> {
+  if (isRemoteQuotaCoolingDown()) return null;
   try {
     const response = await fetch('/api/ai', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ task: 'summary', headlines, mode: 'brief', geoContext, variant: SITE_VARIANT }),
+      body: JSON.stringify({
+        task: 'summary',
+        headlines,
+        mode: 'brief',
+        geoContext,
+        variant: SITE_VARIANT,
+        allowLocalAi: true,
+        localAiOnly: true,
+      }),
     });
 
     if (!response.ok) {
@@ -103,7 +108,7 @@ async function tryRemoteSummary(headlines: string[], geoContext?: string): Promi
       cached: !!data.cached,
     };
   } catch (error) {
-    console.warn('[Summarization] Remote provider failed:', error);
+    console.warn('[Summarization] LocalAI provider failed:', error);
     return null;
   }
 }
@@ -140,7 +145,8 @@ async function tryBrowserT5(headlines: string[]): Promise<SummarizationResult | 
 }
 
 /**
- * Generate a summary using the fallback chain: LocalAI -> Hugging Face -> Alibaba Qwen -> Browser T5
+ * Generate a summary using Browser T5 by default.
+ * Callers can opt into LocalAI first with allowLocalAi.
  * Server-side Redis caching is handled by the API endpoints
  * @param geoContext Optional geographic signal context to include in the prompt
  */
@@ -155,24 +161,20 @@ export async function generateSummary(
   }
 
   const allowBrowserFallback = options.allowBrowserFallback ?? true;
-  const remoteAvailable = hasRemoteSummaryProvider() && !isRemoteQuotaCoolingDown();
-  const browserAvailable = allowBrowserFallback && mlWorker.isAvailable;
+  const allowLocalAi = options.allowLocalAi === true;
+  const remoteAvailable = allowLocalAi && !isRemoteQuotaCoolingDown();
 
-  if (!remoteAvailable && !browserAvailable) {
-    console.log(
-      allowBrowserFallback
-        ? '[Summarization] No summary providers available'
-        : '[Summarization] Remote provider unavailable and browser fallback disabled'
-    );
+  if (!remoteAvailable && !allowBrowserFallback) {
+    console.log('[Summarization] LocalAI unavailable and browser fallback disabled');
     return null;
   }
 
-  const totalSteps = allowBrowserFallback ? 2 : 1;
+  const totalSteps = remoteAvailable && allowBrowserFallback ? 2 : 1;
 
   if (remoteAvailable) {
-    // Step 1: Try the shared server route. It prefers LocalAI, then Hugging Face and DashScope.
-    onProgress?.(1, totalSteps, 'Connecting to AI provider...');
-    const remoteResult = await tryRemoteSummary(headlines, geoContext);
+    // Step 1: Cuba brief opts into the shared server route for LocalAI only.
+    onProgress?.(1, totalSteps, 'Connecting to LocalAI...');
+    const remoteResult = await tryLocalAiSummary(headlines, geoContext);
     if (remoteResult) {
       return remoteResult;
     }
@@ -181,13 +183,13 @@ export async function generateSummary(
   if (!allowBrowserFallback) {
     if (remoteAvailable) {
       console.log('[Summarization] Browser fallback skipped for this request');
-      console.warn('[Summarization] Remote provider failed');
+      console.warn('[Summarization] LocalAI provider failed');
     }
     return null;
   }
 
-  // Step 2: Try Browser T5 (local, unlimited but slower)
-  onProgress?.(2, totalSteps, 'Loading local AI model...');
+  // Browser T5 is the default local summarizer and the fallback after LocalAI.
+  onProgress?.(remoteAvailable ? 2 : 1, totalSteps, 'Loading local AI model...');
   const browserResult = await tryBrowserT5(headlines);
   if (browserResult) {
     return browserResult;

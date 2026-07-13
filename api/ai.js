@@ -11,9 +11,14 @@ const LOCALAI_MODEL =
   String(process.env.LOCALAI_MODEL || '').trim();
 const LOCALAI_API_KEY =
   String(process.env.LOCALAI_API_KEY || '').trim();
+const LOCALAI_BATCH_SIZE = 3;
+const LOCALAI_CLASSIFY_MAX_TOKENS = 120;
+const LOCALAI_SUMMARY_MAX_TOKENS = 160;
+const LOCALAI_TIMEOUT_MS = 120000;
+const LOCALAI_CONCURRENCY = 1;
 const LOCALAI_REQUEST_TIMEOUT_MS = Math.max(
   1000,
-  Number(process.env.LOCALAI_REQUEST_TIMEOUT_MS || 25000) || 25000
+  Number(process.env.LOCALAI_REQUEST_TIMEOUT_MS || LOCALAI_TIMEOUT_MS) || LOCALAI_TIMEOUT_MS
 );
 const DASHSCOPE_API_URL =
   String(process.env.DASHSCOPE_API_URL || '').trim()
@@ -31,8 +36,9 @@ const CLASSIFY_CACHE_TTL_SECONDS = 86400;
 const SUMMARY_CACHE_VERSION = 'v5';
 const COUNTRY_CACHE_VERSION = 'ci-v3';
 const CLASSIFY_CACHE_VERSION = 'v2';
-const MAX_BATCH_SIZE = 20;
 const QUOTA_RETRY_AFTER_SECONDS = 3600;
+let localAiActiveRequests = 0;
+const localAiQueue = [];
 
 const VALID_LEVELS = ['critical', 'high', 'medium', 'low', 'info'];
 const VALID_CATEGORIES = [
@@ -40,6 +46,33 @@ const VALID_CATEGORIES = [
   'terrorism', 'cyber', 'health', 'environmental', 'military',
   'crime', 'infrastructure', 'tech', 'general',
 ];
+
+function shouldLogAiPrompt() {
+  const value = String(process.env.AI_DEBUG_PROMPT || '').trim().toLowerCase();
+  if (['1', 'true', 'yes', 'on'].includes(value)) return true;
+  if (['0', 'false', 'no', 'off'].includes(value)) return false;
+  return process.env.NODE_ENV !== 'production';
+}
+
+function logAiPrompt(provider, {
+  messages,
+  temperature,
+  maxTokens,
+  topP,
+  responseFormat,
+}) {
+  if (!shouldLogAiPrompt()) return;
+
+  console.log('[AI prompt]', JSON.stringify({
+    provider: provider.id,
+    model: provider.model,
+    temperature,
+    max_tokens: maxTokens,
+    top_p: topP,
+    ...(responseFormat ? { response_format: responseFormat } : {}),
+    messages,
+  }, null, 2));
+}
 
 function json(body, status = 200, corsHeaders = {}, extraHeaders = {}) {
   return new Response(JSON.stringify(body), {
@@ -65,8 +98,10 @@ function getHuggingFaceApiKey() {
   ).trim();
 }
 
-function getAiProvider() {
-  if (LOCALAI_API_URL && LOCALAI_MODEL) {
+function getAiProvider(options = {}) {
+  const allowLocalAi = options.allowLocalAi === true || options.localAiOnly === true;
+
+  if (allowLocalAi && LOCALAI_API_URL && LOCALAI_MODEL) {
     return {
       id: 'localai',
       label: 'LocalAI',
@@ -75,6 +110,10 @@ function getAiProvider() {
       model: LOCALAI_MODEL,
       timeoutMs: LOCALAI_REQUEST_TIMEOUT_MS,
     };
+  }
+
+  if (options.localAiOnly === true) {
+    return null;
   }
 
   const huggingFaceKey = getHuggingFaceApiKey();
@@ -214,6 +253,30 @@ function buildProviderErrorHeaders(status, rawText = '') {
     : {};
 }
 
+function runWithLocalAiConcurrency(task) {
+  if (LOCALAI_CONCURRENCY <= 0) return task();
+
+  return new Promise((resolve, reject) => {
+    const run = () => {
+      localAiActiveRequests += 1;
+      Promise.resolve()
+        .then(task)
+        .then(resolve, reject)
+        .finally(() => {
+          localAiActiveRequests -= 1;
+          const next = localAiQueue.shift();
+          if (next) next();
+        });
+    };
+
+    if (localAiActiveRequests < LOCALAI_CONCURRENCY) {
+      run();
+    } else {
+      localAiQueue.push(run);
+    }
+  });
+}
+
 async function callAiProviderChat(provider, {
   messages,
   temperature = 0.3,
@@ -221,74 +284,80 @@ async function callAiProviderChat(provider, {
   topP = 0.9,
   responseFormat,
 }) {
-  const headers = {
-    'Content-Type': 'application/json',
-  };
-  if (provider.apiKey) {
-    headers.Authorization = `Bearer ${provider.apiKey}`;
-  }
+  logAiPrompt(provider, { messages, temperature, maxTokens, topP, responseFormat });
 
-  const controller = new AbortController();
-  const timeoutMs = Number(provider.timeoutMs) || 30000;
-  const timeout = setTimeout(() => controller.abort(), timeoutMs);
-  let response;
-  try {
-    response = await fetch(provider.apiUrl, {
-      method: 'POST',
-      headers,
-      signal: controller.signal,
-      body: JSON.stringify({
-        model: provider.model,
-        messages,
-        temperature,
-        max_tokens: maxTokens,
-        top_p: topP,
-        ...(responseFormat ? { response_format: responseFormat } : {}),
-      }),
-    });
-  } catch (error) {
-    if (controller.signal.aborted) {
-      const timeoutError = new Error(`${provider.label} timed out after ${timeoutMs}ms`);
-      timeoutError.status = 504;
-      timeoutError.provider = provider.id;
-      throw timeoutError;
+  const sendRequest = async () => {
+    const headers = {
+      'Content-Type': 'application/json',
+    };
+    if (provider.apiKey) {
+      headers.Authorization = `Bearer ${provider.apiKey}`;
     }
-    throw error;
-  } finally {
-    clearTimeout(timeout);
-  }
 
-  const rawText = await response.text();
-  let payload = null;
-  try {
-    payload = JSON.parse(rawText);
-  } catch {
-    // Some error payloads may not be JSON.
-  }
+    const controller = new AbortController();
+    const timeoutMs = Number(provider.timeoutMs) || 120000;
+    const timeout = setTimeout(() => controller.abort(), timeoutMs);
+    let response;
+    try {
+      response = await fetch(provider.apiUrl, {
+        method: 'POST',
+        headers,
+        signal: controller.signal,
+        body: JSON.stringify({
+          model: provider.model,
+          messages,
+          temperature,
+          max_tokens: maxTokens,
+          top_p: topP,
+          ...(responseFormat ? { response_format: responseFormat } : {}),
+        }),
+      });
+    } catch (error) {
+      if (controller.signal.aborted) {
+        const timeoutError = new Error(`${provider.label} timed out after ${timeoutMs}ms`);
+        timeoutError.status = 504;
+        timeoutError.provider = provider.id;
+        throw timeoutError;
+      }
+      throw error;
+    } finally {
+      clearTimeout(timeout);
+    }
 
-  if (!response.ok) {
-    const error = new Error(`${provider.label} error: ${response.status}`);
-    error.status = response.status;
-    error.payload = payload;
-    error.rawText = rawText;
-    error.provider = provider.id;
-    throw error;
-  }
+    const rawText = await response.text();
+    let payload = null;
+    try {
+      payload = JSON.parse(rawText);
+    } catch {
+      // Some error payloads may not be JSON.
+    }
 
-  return {
-    payload,
-    text: extractChoiceText(payload),
-    usage: payload?.usage || null,
+    if (!response.ok) {
+      const error = new Error(`${provider.label} error: ${response.status}`);
+      error.status = response.status;
+      error.payload = payload;
+      error.rawText = rawText;
+      error.provider = provider.id;
+      throw error;
+    }
+
+    return {
+      payload,
+      text: extractChoiceText(payload),
+      usage: payload?.usage || null,
+    };
   };
+
+  return provider.id === 'localai'
+    ? runWithLocalAiConcurrency(sendRequest)
+    : sendRequest();
 }
 
 function buildSummaryPrompts(uniqueHeadlines, mode = 'brief', geoContext = '', variant = 'full') {
   const headlineText = uniqueHeadlines.map((headline, index) => `${index + 1}. ${headline}`).join('\n');
   const intelSection = geoContext ? `\n\n${geoContext}` : '';
   const isTechVariant = variant === 'tech';
-  const dateContext =
-    `Current date: ${new Date().toISOString().split('T')[0]}.`
-    + (isTechVariant ? '' : ' Donald Trump is the current US President (second term, inaugurated Jan 2025).');
+  const dateContext = `Current date: ${new Date().toISOString().split('T')[0]}.`;
 
   let systemPrompt = '';
   let userPrompt = '';
@@ -379,7 +448,7 @@ async function handleSummaryTask(body, corsHeaders, provider) {
     const { text, usage } = await callAiProviderChat(provider, {
       messages,
       temperature: 0.3,
-      maxTokens: 180,
+      maxTokens: LOCALAI_SUMMARY_MAX_TOKENS,
       topP: 0.9,
     });
 
@@ -480,7 +549,7 @@ async function handleCountryBriefTask(body, corsHeaders, provider) {
     : '\nNo real-time sensor data available for this country.';
 
   const dateStr = new Date().toISOString().split('T')[0];
-  const systemPrompt = `You are a senior intelligence analyst providing a concise, data-driven country situation brief. Current date: ${dateStr}. Donald Trump is the current US President (second term, inaugurated Jan 2025).
+  const systemPrompt = `You are a senior intelligence analyst providing a concise, data-driven country situation brief. Current date: ${dateStr}.
 
 Write a clear intelligence brief for the requested country.
 
@@ -551,7 +620,7 @@ async function handleClassifyBatchTask(body, corsHeaders, provider) {
     return json({ error: 'titles array required' }, 400, corsHeaders);
   }
 
-  const batch = titles.slice(0, MAX_BATCH_SIZE);
+  const batch = titles.slice(0, LOCALAI_BATCH_SIZE);
   const results = new Array(batch.length).fill(null);
   const uncachedIndices = [];
   const cacheKeys = batch.map(
@@ -581,19 +650,14 @@ async function handleClassifyBatchTask(body, corsHeaders, provider) {
   const isTech = variant === 'tech';
   const numberedList = uncachedTitles.map((title, index) => `${index + 1}. ${title}`).join('\n');
 
-  const systemPrompt = `You classify news headlines into threat level and category. Return only JSON.
+  const systemPrompt = `Classify the headlines. Return only valid JSON with this shape: {"results":[{"level":"...","category":"..."}]}. Preserve order.
 
 Allowed levels: critical, high, medium, low, info
 Allowed categories: conflict, protest, disaster, diplomatic, economic, terrorism, cyber, health, environmental, military, crime, infrastructure, tech, general
 
 ${isTech
     ? 'Focus on technology, startups, AI, and cybersecurity. Most tech news should be low or info unless it describes major disruption, breach, outage, or severe strategic impact.'
-    : 'Focus on geopolitical events, conflicts, disasters, diplomacy, and real-world severity.'}
-
-Return a JSON object with this exact shape:
-{"results":[{"level":"...","category":"..."},{"level":"...","category":"..."}]}
-
-Preserve the original order of the headlines.`;
+    : 'Focus on geopolitical events, conflicts, disasters, diplomacy, and real-world severity.'}`;
 
   try {
     const { text } = await callAiProviderChat(provider, {
@@ -602,7 +666,7 @@ Preserve the original order of the headlines.`;
         { role: 'user', content: numberedList },
       ],
       temperature: 0,
-      maxTokens: uncachedTitles.length * 60,
+      maxTokens: LOCALAI_CLASSIFY_MAX_TOKENS,
       topP: 1,
       responseFormat: { type: 'json_object' },
     });
@@ -749,13 +813,18 @@ export default async function handler(request) {
     return json({ error: 'Invalid request body' }, 400, corsHeaders);
   }
 
-  const provider = getAiProvider();
+  const provider = getAiProvider({
+    allowLocalAi: body.allowLocalAi === true,
+    localAiOnly: body.localAiOnly === true,
+  });
   if (!provider) {
     return json(
       {
         fallback: true,
         skipped: true,
-        reason: 'LOCALAI_API_URL/LOCALAI_MODEL, HF_TOKEN, or DASHSCOPE_API_KEY not configured',
+        reason: body.localAiOnly === true
+          ? 'LOCALAI_API_URL/LOCALAI_MODEL not configured'
+          : 'HF_TOKEN or DASHSCOPE_API_KEY not configured',
       },
       200,
       corsHeaders
