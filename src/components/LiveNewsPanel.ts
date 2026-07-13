@@ -121,13 +121,8 @@ export class LiveNewsPanel extends Panel {
   private channelSwitcher: HTMLElement | null = null;
   private isMuted = true;
   private isPlaying = true;
-  private wasPlayingBeforeIdle = true;
   private muteBtn: HTMLButtonElement | null = null;
   private liveBtn: HTMLButtonElement | null = null;
-  private idleTimeout: ReturnType<typeof setTimeout> | null = null;
-  private readonly IDLE_PAUSE_MS = 5 * 60 * 1000; // 5 minutes
-  private boundVisibilityHandler!: () => void;
-  private boundIdleResetHandler!: () => void;
 
   // YouTube Player API state
   private player: YouTubePlayer | null = null;
@@ -157,7 +152,6 @@ export class LiveNewsPanel extends Panel {
     this.updateControlAvailability();
     this.setupBridgeMessageListener();
     this.renderPlayer();
-    this.setupIdleDetection();
   }
 
   private get embedOrigin(): string {
@@ -249,33 +243,6 @@ export class LiveNewsPanel extends Panel {
     return fallbackOrigin;
   }
 
-  private setupIdleDetection(): void {
-    // Suspend idle timer when hidden, resume when visible
-    this.boundVisibilityHandler = () => {
-      if (document.hidden) {
-        // Suspend idle timer so background playback isn't killed
-        if (this.idleTimeout) clearTimeout(this.idleTimeout);
-      } else {
-        this.resumeFromIdle();
-        this.boundIdleResetHandler();
-      }
-    };
-    document.addEventListener('visibilitychange', this.boundVisibilityHandler);
-
-    // Track user activity to detect idle (pauses after 5 min inactivity)
-    this.boundIdleResetHandler = () => {
-      if (this.idleTimeout) clearTimeout(this.idleTimeout);
-      this.idleTimeout = setTimeout(() => this.pauseForIdle(), this.IDLE_PAUSE_MS);
-    };
-
-    ['mousedown', 'keydown', 'scroll', 'touchstart'].forEach(event => {
-      document.addEventListener(event, this.boundIdleResetHandler, { passive: true });
-    });
-
-    // Start the idle timer
-    this.boundIdleResetHandler();
-  }
-
   private isYouTubeChannel(channel: LiveChannel = this.activeChannel): channel is YouTubeLiveChannel {
     return channel.source === 'youtube';
   }
@@ -300,15 +267,6 @@ export class LiveNewsPanel extends Panel {
         ? 'Toggle sound'
         : 'Sound controls are available inside the live player';
     }
-  }
-
-  private pauseForIdle(): void {
-    if (this.isPlaying) {
-      this.wasPlayingBeforeIdle = true;
-      this.isPlaying = false;
-      this.updateLiveIndicator();
-    }
-    this.destroyPlayer();
   }
 
   private destroyPlayer(): void {
@@ -337,14 +295,6 @@ export class LiveNewsPanel extends Panel {
     }
   }
 
-  private resumeFromIdle(): void {
-    if (this.wasPlayingBeforeIdle && !this.isPlaying) {
-      this.isPlaying = true;
-      this.updateLiveIndicator();
-      void this.initializePlayer();
-    }
-  }
-
   private createLiveButton(): void {
     this.liveBtn = document.createElement('button');
     this.liveBtn.className = 'live-indicator-btn';
@@ -370,7 +320,6 @@ export class LiveNewsPanel extends Panel {
   private togglePlayback(): void {
     if (!this.isYouTubeChannel()) return;
     this.isPlaying = !this.isPlaying;
-    this.wasPlayingBeforeIdle = this.isPlaying;
     this.updateLiveIndicator();
     this.syncPlayerState();
   }
@@ -441,7 +390,6 @@ export class LiveNewsPanel extends Panel {
     this.updateControlAvailability();
     if (!this.isYouTubeChannel(channel)) {
       this.isPlaying = true;
-      this.wasPlayingBeforeIdle = true;
       this.updateLiveIndicator();
     }
 
@@ -881,16 +829,7 @@ export class LiveNewsPanel extends Panel {
   }
 
   public destroy(): void {
-    if (this.idleTimeout) {
-      clearTimeout(this.idleTimeout);
-      this.idleTimeout = null;
-    }
-
-    document.removeEventListener('visibilitychange', this.boundVisibilityHandler);
     window.removeEventListener('message', this.boundMessageHandler);
-    ['mousedown', 'keydown', 'scroll', 'touchstart'].forEach(event => {
-      document.removeEventListener(event, this.boundIdleResetHandler);
-    });
 
     if (this.player) {
       this.player.destroy();

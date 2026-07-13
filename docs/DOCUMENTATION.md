@@ -290,18 +290,9 @@ The live stream panel uses the **YouTube IFrame Player API** rather than raw ifr
 | **Reduced bandwidth** | Same stream continues across state changes |
 | **Faster switching** | Channel changes via `loadVideoById()` |
 
-**Idle Detection:**
+**Playback Behavior:**
 
-To conserve resources, the panel implements automatic idle pausing:
-
-| Trigger | Action |
-|---------|--------|
-| **Tab hidden** | Stream pauses (via Visibility API) |
-| **5 min idle** | Stream pauses (no mouse/keyboard activity) |
-| **User returns** | Stream resumes automatically |
-| **Manual pause** | User intent tracked separately |
-
-This prevents background tabs from consuming bandwidth while preserving user preference for manually-paused streams.
+Live streams stay mounted and continue playing until the user manually pauses or changes channel. This avoids interrupting long-running video monitoring sessions because of inactivity.
 
 ### Market Data
 
