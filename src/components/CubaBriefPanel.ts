@@ -6,7 +6,7 @@ import { isMobileDevice } from '@/utils';
 import type { NewsItem } from '@/types';
 
 export class CubaBriefPanel extends Panel {
-  private static readonly BRIEF_CACHE_KEY = 'summary:cuba-brief';
+  private static readonly BRIEF_CACHE_KEY = 'summary:cuba-general-brief-v2';
   private static readonly BRIEF_COOLDOWN_MS = 120000;
   private static readonly MAX_VISIBLE_SOURCES = 8;
 
@@ -19,7 +19,7 @@ export class CubaBriefPanel extends Panel {
   constructor() {
     super({
       id: 'cuba-brief',
-      title: 'Situacion Actual en Cuba',
+      title: 'Situación General de Cuba',
       showCount: false,
     });
 
@@ -85,14 +85,17 @@ export class CubaBriefPanel extends Panel {
       return;
     }
 
-    this.setContent('<div class="insights-empty">Generating Cuba summary...</div>');
+    this.setContent('<div class="insights-empty">Generando resumen general de Cuba...</div>');
 
     const cubaContext = [
       'FOCUS COUNTRY: Cuba.',
-      'Summarize only developments directly tied to Cuba.',
-      'Return exactly one short paragraph in Spanish describing the current situation in Cuba.',
-      'Prioritize domestic politics, economy, infrastructure, migration, energy, telecommunications, and public services.',
+      'Produce a balanced synthesis of the most important current developments directly tied to Cuba.',
+      'Return exactly one concise paragraph in Spanish describing the general situation in Cuba.',
+      'Cover the dominant developments across domestic politics, economy, society, public services, energy, infrastructure, migration, foreign relations, health, culture, technology, security, weather, and tourism when supported by the headlines.',
+      'Prioritize impact on the Cuban population and distinguish confirmed developments from announcements or projections.',
+      'Do not force every topic into the summary; select the most consequential and well-supported themes.',
       'Ignore unrelated regional stories unless Cuba is central to the event.',
+      'Do not invent facts, causes, figures, or conclusions that are absent from the supplied headlines.',
       'Do not use bullet points, headings, or multiple paragraphs.',
     ].join(' ');
 
@@ -159,7 +162,7 @@ export class CubaBriefPanel extends Panel {
 
     this.setContent(`
       <div class="cuba-brief-panel">
-        <p class="cuba-brief-paragraph">${this.cubaBrief ? escapeHtml(this.cubaBrief) : 'Generando resumen de la situacion actual en Cuba...'}</p>
+        <p class="cuba-brief-paragraph">${this.cubaBrief ? escapeHtml(this.cubaBrief) : 'Generando resumen de la situación general de Cuba...'}</p>
         ${sourcesHtml}
       </div>
     `);

@@ -21,7 +21,7 @@ const FULL_PANELS: Record<string, PanelConfig> = {
   africa: { name: 'Africa', enabled: true, priority: 1 },
   latam: { name: 'Latin America', enabled: true, priority: 1 },
   cuba: { name: 'Cuba', enabled: true, priority: 1 },
-  'cuba-brief': { name: 'Situacion Actual en Cuba', enabled: true, priority: 1 },
+  'cuba-brief': { name: 'Situación General de Cuba', enabled: true, priority: 1 },
   pinarDelRio: { name: 'Pinar del Río', enabled: true, priority: 1 },
   artemisa: { name: 'Artemisa', enabled: true, priority: 1 },
   laHabana: { name: 'La Habana', enabled: true, priority: 1 },

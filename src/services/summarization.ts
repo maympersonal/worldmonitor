@@ -106,7 +106,7 @@ async function tryRemoteSummary(headlines: string[], geoContext?: string): Promi
   }
 }
 
-async function tryBrowserT5(headlines: string[]): Promise<SummarizationResult | null> {
+async function tryBrowserT5(headlines: string[], geoContext?: string): Promise<SummarizationResult | null> {
   try {
     if (!mlWorker.isAvailable) {
       const ready = await mlWorker.init();
@@ -116,8 +116,10 @@ async function tryBrowserT5(headlines: string[]): Promise<SummarizationResult | 
       }
     }
 
-    const combinedText = headlines.slice(0, 6).map(h => h.slice(0, 80)).join('. ');
-    const prompt = `Summarize the main themes from these news headlines in 2 sentences: ${combinedText}`;
+    const combinedText = headlines.slice(0, 8).map(h => h.slice(0, 140)).join('. ');
+    const prompt = geoContext
+      ? `${geoContext} Source headlines: ${combinedText}`
+      : `Summarize the main themes from these news headlines in 2 sentences: ${combinedText}`;
 
     const [summary] = await mlWorker.summarize([prompt]);
 
@@ -186,7 +188,7 @@ export async function generateSummary(
 
   // Step 2: Try Browser T5 (local, unlimited but slower)
   onProgress?.(2, totalSteps, 'Loading local AI model...');
-  const browserResult = await tryBrowserT5(headlines);
+  const browserResult = await tryBrowserT5(headlines, geoContext);
   if (browserResult) {
     return browserResult;
   }

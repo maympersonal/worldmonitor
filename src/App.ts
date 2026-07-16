@@ -132,8 +132,8 @@ interface DesktopRuntimeInfo {
 }
 
 const CYBER_LAYER_ENABLED = import.meta.env.VITE_ENABLE_CYBER_LAYER === 'true';
-// Desactivado por solicitud: evitar ejecución de AI Insights.
-const ENABLE_AI_INSIGHTS_SECTION = false;
+// Activa el resumen con IA / World Brief.
+const ENABLE_AI_INSIGHTS_SECTION = true;
 // Desactivado por solicitud: evitar ejecución de AI Strategic Posture.
 const ENABLE_AI_STRATEGIC_POSTURE_SECTION = false;
 
@@ -1777,24 +1777,6 @@ export class App {
               <span class="variant-icon">🌍</span>
               <span class="variant-label">${t('header.world')}</span>
             </a>
-            <span class="variant-divider"></span>
-            <a href="${this.isDesktopApp ? '#' : (SITE_VARIANT === 'tech' ? '#' : 'https://tech.worldmonitor.app')}"
-               class="variant-option ${SITE_VARIANT === 'tech' ? 'active' : ''}"
-               data-variant="tech"
-               ${!this.isDesktopApp && SITE_VARIANT !== 'tech' ? 'target="_blank" rel="noopener"' : ''}
-               title="${t('header.tech')}${SITE_VARIANT === 'tech' ? ` ${t('common.currentVariant')}` : ''}">
-              <span class="variant-icon">💻</span>
-              <span class="variant-label">${t('header.tech')}</span>
-            </a>
-            <span class="variant-divider"></span>
-            <a href="${this.isDesktopApp ? '#' : (SITE_VARIANT === 'finance' ? '#' : 'https://finance.worldmonitor.app')}"
-               class="variant-option ${SITE_VARIANT === 'finance' ? 'active' : ''}"
-               data-variant="finance"
-               ${!this.isDesktopApp && SITE_VARIANT !== 'finance' ? 'target="_blank" rel="noopener"' : ''}
-               title="${t('header.finance')}${SITE_VARIANT === 'finance' ? ` ${t('common.currentVariant')}` : ''}">
-              <span class="variant-icon">📈</span>
-              <span class="variant-label">${t('header.finance')}</span>
-            </a>
           </div>
           <span class="logo">MONITOR</span><span class="version">v${__APP_VERSION__}</span>
           <a href="https://x.com/eliehabib" target="_blank" rel="noopener" class="credit-link">
@@ -2676,7 +2658,9 @@ export class App {
       this.container.querySelectorAll<HTMLAnchorElement>('.variant-option').forEach(link => {
         link.addEventListener('click', (e) => {
           const variant = link.dataset.variant;
-          if (variant && variant !== SITE_VARIANT) {
+          // Desktop builds may return to the World variant, but Tech and Finance
+          // are intentionally not exposed as switchable destinations.
+          if (variant === 'full' && variant !== SITE_VARIANT) {
             e.preventDefault();
             localStorage.setItem('worldmonitor-variant', variant);
             window.location.reload();
