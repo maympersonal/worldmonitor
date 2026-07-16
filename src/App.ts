@@ -3373,10 +3373,14 @@ export class App {
     return labels[range];
   }
 
-  private renderNewsForCategory(category: string, items: NewsItem[]): void {
+  private renderNewsForCategory(
+    category: string,
+    items: NewsItem[],
+    options: { updateCubaBrief?: boolean } = {}
+  ): void {
     const provinceScopedItems = this.filterNewsByActiveProvince(items);
     this.newsByCategory[category] = provinceScopedItems;
-    if (category === 'cuba') {
+    if (category === 'cuba' && options.updateCubaBrief !== false) {
       const cubaBriefPanel = this.panels['cuba-brief'] as CubaBriefPanel | undefined;
       cubaBriefPanel?.setCubaNews(provinceScopedItems, { allowBrowserFallback: true });
     }
@@ -3408,7 +3412,7 @@ export class App {
 
   private applyTimeRangeFilterToNewsPanels(): void {
     Object.entries(this.newsByCategory).forEach(([category, items]) => {
-      this.renderNewsForCategory(category, items);
+      this.renderNewsForCategory(category, items, { updateCubaBrief: false });
     });
   }
 
@@ -3434,7 +3438,7 @@ export class App {
 
       const flushPendingRender = () => {
         if (!pendingItems) return;
-        this.renderNewsForCategory(category, pendingItems);
+        this.renderNewsForCategory(category, pendingItems, { updateCubaBrief: false });
         pendingItems = null;
         lastRenderTime = Date.now();
       };
