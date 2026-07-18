@@ -5,16 +5,25 @@ import { escapeHtml } from '@/utils/sanitize';
 import { isMobileDevice } from '@/utils';
 import type { NewsItem } from '@/types';
 
+interface CubaBriefRefreshRequest {
+  signature: string;
+  allowBrowserFallback: boolean;
+}
+
 export class CubaBriefPanel extends Panel {
   private static readonly BRIEF_CACHE_KEY = 'summary:cuba-general-brief-v2';
   private static readonly BRIEF_COOLDOWN_MS = 120000;
+  private static readonly BRIEF_CACHE_TTL_MS = 6 * 60 * 60 * 1000;
   private static readonly MAX_VISIBLE_SOURCES = 8;
 
   private cubaNews: NewsItem[] = [];
   private cubaBrief: string | null = null;
   private headlineSignature = '';
+  private briefSignature = '';
   private lastBriefUpdate = 0;
   private isHidden = false;
+  private refreshInFlight = false;
+  private pendingRefresh: CubaBriefRefreshRequest | null = null;
 
   constructor() {
     super({
@@ -46,24 +55,56 @@ export class CubaBriefPanel extends Panel {
 
     if (nextItems.length < 2) {
       this.cubaBrief = null;
+      this.briefSignature = '';
       this.setDataBadge('unavailable');
       this.render();
       return;
     }
 
     const allowBrowserFallback = options.allowBrowserFallback ?? true;
-    void this.refreshBrief(nextSignature, allowBrowserFallback);
+    this.enqueueRefresh({ signature: nextSignature, allowBrowserFallback });
+  }
+
+  private enqueueRefresh(request: CubaBriefRefreshRequest): void {
+    if (this.refreshInFlight) {
+      // Feed batches can update rapidly. Keep only the latest state instead of
+      // sending every intermediate headline set to the single-request LocalAI queue.
+      this.pendingRefresh = request;
+      return;
+    }
+
+    void this.processRefreshQueue(request);
+  }
+
+  private async processRefreshQueue(initialRequest: CubaBriefRefreshRequest): Promise<void> {
+    this.refreshInFlight = true;
+    let request: CubaBriefRefreshRequest | null = initialRequest;
+
+    try {
+      while (request) {
+        await this.refreshBrief(request.signature, request.allowBrowserFallback);
+        request = this.pendingRefresh;
+        this.pendingRefresh = null;
+      }
+    } finally {
+      this.refreshInFlight = false;
+    }
   }
 
   private async loadBriefFromCache(signature: string): Promise<boolean> {
-    if (this.cubaBrief && this.headlineSignature === signature) return false;
+    if (this.cubaBrief && this.briefSignature === signature) return false;
 
     const entry = await getPersistentCache<{ summary: string; signature: string }>(CubaBriefPanel.BRIEF_CACHE_KEY);
     if (!entry?.data?.summary || entry.data.signature !== signature) return false;
+    if (Date.now() - entry.updatedAt > CubaBriefPanel.BRIEF_CACHE_TTL_MS) return false;
+    if (this.headlineSignature !== signature) return false;
 
-    this.cubaBrief = entry.data.summary;
+    const summary = this.normalizeAndValidateSummary(entry.data.summary);
+    if (!summary) return false;
+
+    this.cubaBrief = summary;
     this.lastBriefUpdate = entry.updatedAt;
-    this.headlineSignature = signature;
+    this.briefSignature = signature;
     return true;
   }
 
@@ -74,11 +115,12 @@ export class CubaBriefPanel extends Panel {
     if (titles.length < 2) return;
 
     const loadedFromCache = await this.loadBriefFromCache(signature);
+    if (this.headlineSignature !== signature) return;
     const now = Date.now();
 
     if (
       loadedFromCache
-      || (this.cubaBrief && this.headlineSignature === signature && now - this.lastBriefUpdate <= CubaBriefPanel.BRIEF_COOLDOWN_MS)
+      || (this.cubaBrief && this.briefSignature === signature && now - this.lastBriefUpdate <= CubaBriefPanel.BRIEF_COOLDOWN_MS)
     ) {
       this.setDataBadge(loadedFromCache ? 'cached' : 'live');
       this.render();
@@ -103,21 +145,37 @@ export class CubaBriefPanel extends Panel {
       titles,
       undefined,
       cubaContext,
-      { allowBrowserFallback }
+      { allowBrowserFallback, allowLocalAi: true }
     ).catch(() => null);
 
-    if (!result?.summary) {
+    const summary = result?.summary ? this.normalizeAndValidateSummary(result.summary) : null;
+    if (this.headlineSignature !== signature) return;
+    if (!summary) {
       this.setDataBadge('unavailable');
       this.render();
       return;
     }
 
-    this.cubaBrief = result.summary.replace(/\s*\n+\s*/g, ' ').trim();
-    this.headlineSignature = signature;
+    this.cubaBrief = summary;
+    this.briefSignature = signature;
     this.lastBriefUpdate = now;
-    this.setDataBadge(result.cached ? 'cached' : 'live');
-    void setPersistentCache(CubaBriefPanel.BRIEF_CACHE_KEY, { summary: result.summary, signature });
+    this.setDataBadge(result?.cached ? 'cached' : 'live');
+    void setPersistentCache(CubaBriefPanel.BRIEF_CACHE_KEY, { summary, signature });
     this.render();
+  }
+
+  private normalizeAndValidateSummary(value: string): string | null {
+    const summary = value
+      .replace(/^```(?:\w+)?\s*/i, '')
+      .replace(/\s*```$/i, '')
+      .replace(/\s*\n+\s*/g, ' ')
+      .trim();
+
+    if (summary.length < 40 || summary.length > 1200) return null;
+    if (/^(?:[-*•]|\d+[.)])\s/.test(summary)) return null;
+    if (!/\b(?:el|la|los|las|de|del|en|que|para|con|por|una|un)\b/i.test(summary)) return null;
+
+    return summary;
   }
 
   private getVisibleSources(): string[] {

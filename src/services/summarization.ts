@@ -1,14 +1,15 @@
 /**
  * Summarization Service with Fallback Chain
  * Server-side Redis caching handles cross-user deduplication
- * Fallback: Hugging Face -> Alibaba Qwen -> Browser T5
+ * Default fallback: Hugging Face -> Alibaba Qwen -> Browser T5
+ * Opt-in fallback: LocalAI -> Browser T5
  */
 
 import { mlWorker } from './ml-worker';
 import { SITE_VARIANT } from '@/config';
 import { isFeatureAvailable } from './runtime-config';
 
-export type SummarizationProvider = 'huggingface' | 'alibaba' | 'browser' | 'cache';
+export type SummarizationProvider = 'localai' | 'huggingface' | 'alibaba' | 'browser' | 'cache';
 
 export interface SummarizationResult {
   summary: string;
@@ -20,6 +21,7 @@ export type ProgressCallback = (step: number, total: number, message: string) =>
 
 export interface GenerateSummaryOptions {
   allowBrowserFallback?: boolean;
+  allowLocalAi?: boolean;
 }
 
 const REMOTE_QUOTA_COOLDOWN_MS = 60 * 60 * 1000;
@@ -61,13 +63,31 @@ function hasRemoteSummaryProvider(): boolean {
   return isFeatureAvailable('aiHuggingFace') || isFeatureAvailable('aiAlibabaQwen');
 }
 
-async function tryRemoteSummary(headlines: string[], geoContext?: string): Promise<SummarizationResult | null> {
-  if (!hasRemoteSummaryProvider() || isRemoteQuotaCoolingDown()) return null;
+async function tryRemoteSummary(
+  headlines: string[],
+  geoContext?: string,
+  localAiOnly = false
+): Promise<SummarizationResult | null> {
+  if ((!localAiOnly && !hasRemoteSummaryProvider()) || isRemoteQuotaCoolingDown()) return null;
   try {
+    if (localAiOnly) {
+      console.log('[Summarization][LocalAI] Solicitando resumen al backend', {
+        headlineCount: headlines.length,
+        geoContext,
+        variant: SITE_VARIANT,
+      });
+    }
     const response = await fetch('/api/ai', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ task: 'summary', headlines, mode: 'brief', geoContext, variant: SITE_VARIANT }),
+      body: JSON.stringify({
+        task: 'summary',
+        headlines,
+        mode: 'brief',
+        geoContext,
+        variant: SITE_VARIANT,
+        ...(localAiOnly ? { allowLocalAi: true, localAiOnly: true } : {}),
+      }),
     });
 
     if (!response.ok) {
@@ -83,25 +103,38 @@ async function tryRemoteSummary(headlines: string[], geoContext?: string): Promi
       return null;
     }
     if (data.fallback || data.skipped || typeof data.summary !== 'string' || !data.summary.trim()) {
+      if (localAiOnly) {
+        console.warn('[Summarization][LocalAI] El backend no generó un resumen', data);
+      }
       return null;
     }
 
     const provider = data.cached
       ? 'cache'
-      : data.provider === 'huggingface'
+      : data.provider === 'localai'
+        ? 'localai'
+        : data.provider === 'huggingface'
         ? 'huggingface'
         : 'alibaba';
     console.log(
       `[Summarization] ${provider === 'cache' ? 'Redis cache hit' : `${provider} success`}:`,
       data.model
     );
+    if (localAiOnly) {
+      console.log('[Summarization][LocalAI] Resultado recibido', {
+        provider,
+        model: data.model,
+        cached: Boolean(data.cached),
+        summary: data.summary,
+      });
+    }
     return {
       summary: data.summary,
       provider: provider as SummarizationProvider,
       cached: !!data.cached,
     };
   } catch (error) {
-    console.warn('[Summarization] Remote provider failed:', error);
+    console.warn(`[Summarization] ${localAiOnly ? 'LocalAI' : 'Remote provider'} failed:`, error);
     return null;
   }
 }
@@ -118,7 +151,7 @@ async function tryBrowserT5(headlines: string[], geoContext?: string): Promise<S
 
     const combinedText = headlines.slice(0, 8).map(h => h.slice(0, 140)).join('. ');
     const prompt = geoContext
-      ? `${geoContext} Source headlines: ${combinedText}`
+      ? `Resume en español los siguientes titulares respetando estrictamente estas instrucciones. ${geoContext} Titulares fuente: ${combinedText}`
       : `Summarize the main themes from these news headlines in 2 sentences: ${combinedText}`;
 
     const [summary] = await mlWorker.summarize([prompt]);
@@ -155,10 +188,10 @@ export async function generateSummary(
   }
 
   const allowBrowserFallback = options.allowBrowserFallback ?? true;
-  const remoteAvailable = hasRemoteSummaryProvider() && !isRemoteQuotaCoolingDown();
-  const browserAvailable = allowBrowserFallback && mlWorker.isAvailable;
+  const allowLocalAi = options.allowLocalAi === true;
+  const remoteAvailable = (allowLocalAi || hasRemoteSummaryProvider()) && !isRemoteQuotaCoolingDown();
 
-  if (!remoteAvailable && !browserAvailable) {
+  if (!remoteAvailable && !allowBrowserFallback) {
     console.log(
       allowBrowserFallback
         ? '[Summarization] No summary providers available'
@@ -170,9 +203,8 @@ export async function generateSummary(
   const totalSteps = allowBrowserFallback ? 2 : 1;
 
   if (remoteAvailable) {
-    // Step 1: Try the shared server route. It prefers Hugging Face, then DashScope.
-    onProgress?.(1, totalSteps, 'Connecting to AI provider...');
-    const remoteResult = await tryRemoteSummary(headlines, geoContext);
+    onProgress?.(1, totalSteps, allowLocalAi ? 'Connecting to LocalAI...' : 'Connecting to AI provider...');
+    const remoteResult = await tryRemoteSummary(headlines, geoContext, allowLocalAi);
     if (remoteResult) {
       return remoteResult;
     }

@@ -5,6 +5,17 @@ export const config = {
   runtime: 'edge',
 };
 
+const LOCALAI_API_URL = String(process.env.LOCALAI_API_URL || '').trim();
+const LOCALAI_MODEL = String(process.env.LOCALAI_MODEL || '').trim();
+const LOCALAI_API_KEY = String(process.env.LOCALAI_API_KEY || '').trim();
+const LOCALAI_TIMEOUT_MS = 120000;
+const LOCALAI_REQUEST_TIMEOUT_MS = Math.max(
+  1000,
+  Number(process.env.LOCALAI_REQUEST_TIMEOUT_MS || LOCALAI_TIMEOUT_MS) || LOCALAI_TIMEOUT_MS
+);
+const LOCALAI_CONCURRENCY = 1;
+let localAiActiveRequests = 0;
+const localAiQueue = [];
 const DASHSCOPE_API_URL =
   String(process.env.DASHSCOPE_API_URL || '').trim()
   || 'https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions';
@@ -31,6 +42,22 @@ const VALID_CATEGORIES = [
   'crime', 'infrastructure', 'tech', 'general',
 ];
 
+function isLocalAiDebugEnabled() {
+  const value = String(process.env.LOCALAI_DEBUG || '').trim().toLowerCase();
+  if (['1', 'true', 'yes', 'on'].includes(value)) return true;
+  if (['0', 'false', 'no', 'off'].includes(value)) return false;
+  return process.env.NODE_ENV !== 'production';
+}
+
+function logLocalAi(message, details) {
+  if (!isLocalAiDebugEnabled()) return;
+  if (details === undefined) {
+    console.log(`[LocalAI] ${message}`);
+    return;
+  }
+  console.log(`[LocalAI] ${message}`, details);
+}
+
 function json(body, status = 200, corsHeaders = {}, extraHeaders = {}) {
   return new Response(JSON.stringify(body), {
     status,
@@ -55,7 +82,21 @@ function getHuggingFaceApiKey() {
   ).trim();
 }
 
-function getAiProvider() {
+function getAiProvider(options = {}) {
+  const allowLocalAi = options.allowLocalAi === true || options.localAiOnly === true;
+  if (allowLocalAi && LOCALAI_API_URL && LOCALAI_MODEL) {
+    return {
+      id: 'localai',
+      label: 'LocalAI',
+      apiUrl: LOCALAI_API_URL,
+      apiKey: LOCALAI_API_KEY,
+      model: LOCALAI_MODEL,
+      timeoutMs: LOCALAI_REQUEST_TIMEOUT_MS,
+    };
+  }
+
+  if (options.localAiOnly === true) return null;
+
   const huggingFaceKey = getHuggingFaceApiKey();
   if (huggingFaceKey) {
     return {
@@ -81,11 +122,11 @@ function getAiProvider() {
   return null;
 }
 
-function getSummaryCacheKey(headlines, mode, geoContext = '', variant = 'full') {
+function getSummaryCacheKey(headlines, mode, geoContext = '', variant = 'full', providerScope = 'shared') {
   const sorted = headlines.slice(0, 8).sort().join('|');
   const geoHash = geoContext ? ':g' + hashString(geoContext).slice(0, 6) : '';
   const hash = hashString(`${mode}:${sorted}`);
-  return `summary:${SUMMARY_CACHE_VERSION}:${variant}:${hash}${geoHash}`;
+  return `summary:${SUMMARY_CACHE_VERSION}:${providerScope}:${variant}:${hash}${geoHash}`;
 }
 
 function deduplicateHeadlines(headlines) {
@@ -193,6 +234,32 @@ function buildProviderErrorHeaders(status, rawText = '') {
     : {};
 }
 
+function runWithLocalAiConcurrency(task) {
+  return new Promise((resolve, reject) => {
+    const run = () => {
+      localAiActiveRequests += 1;
+      Promise.resolve()
+        .then(task)
+        .then(resolve, reject)
+        .finally(() => {
+          localAiActiveRequests -= 1;
+          const next = localAiQueue.shift();
+          if (next) next();
+        });
+    };
+
+    if (localAiActiveRequests < LOCALAI_CONCURRENCY) {
+      run();
+    } else {
+      logLocalAi('Solicitud en cola', {
+        activeRequests: localAiActiveRequests,
+        queuedRequests: localAiQueue.length + 1,
+      });
+      localAiQueue.push(run);
+    }
+  });
+}
+
 async function callAiProviderChat(provider, {
   messages,
   temperature = 0.3,
@@ -200,44 +267,101 @@ async function callAiProviderChat(provider, {
   topP = 0.9,
   responseFormat,
 }) {
-  const response = await fetch(provider.apiUrl, {
-    method: 'POST',
-    headers: {
-      Authorization: `Bearer ${provider.apiKey}`,
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify({
+  const sendRequest = async () => {
+    const startedAt = Date.now();
+    const headers = { 'Content-Type': 'application/json' };
+    if (provider.apiKey) headers.Authorization = `Bearer ${provider.apiKey}`;
+    const requestBody = {
       model: provider.model,
       messages,
       temperature,
       max_tokens: maxTokens,
       top_p: topP,
       ...(responseFormat ? { response_format: responseFormat } : {}),
-    }),
-  });
+    };
 
-  const rawText = await response.text();
-  let payload = null;
-  try {
-    payload = JSON.parse(rawText);
-  } catch {
-    // Some error payloads may not be JSON.
-  }
+    if (provider.id === 'localai') {
+      logLocalAi('Conectando con el modelo', {
+        endpoint: provider.apiUrl,
+        model: provider.model,
+        timeoutMs: Number(provider.timeoutMs) || LOCALAI_TIMEOUT_MS,
+        authenticated: Boolean(provider.apiKey),
+      });
+      logLocalAi('Prompt enviado', JSON.stringify(requestBody, null, 2));
+    }
 
-  if (!response.ok) {
-    const error = new Error(`${provider.label} error: ${response.status}`);
-    error.status = response.status;
-    error.payload = payload;
-    error.rawText = rawText;
-    error.provider = provider.id;
-    throw error;
-  }
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), Number(provider.timeoutMs) || LOCALAI_TIMEOUT_MS);
+    let response;
+    try {
+      response = await fetch(provider.apiUrl, {
+        method: 'POST',
+        headers,
+        signal: controller.signal,
+        body: JSON.stringify(requestBody),
+      });
+    } catch (error) {
+      if (controller.signal.aborted) {
+        if (provider.id === 'localai') {
+          console.error(`[LocalAI] Timeout después de ${Date.now() - startedAt}ms`, {
+            endpoint: provider.apiUrl,
+            model: provider.model,
+          });
+        }
+        const timeoutError = new Error(`${provider.label} timed out`);
+        timeoutError.status = 504;
+        throw timeoutError;
+      }
+      if (provider.id === 'localai') {
+        console.error(`[LocalAI] Error de conexión después de ${Date.now() - startedAt}ms`, {
+          endpoint: provider.apiUrl,
+          model: provider.model,
+          error: error instanceof Error ? error.message : String(error),
+        });
+      }
+      throw error;
+    } finally {
+      clearTimeout(timeout);
+    }
 
-  return {
-    payload,
-    text: extractChoiceText(payload),
-    usage: payload?.usage || null,
+    const rawText = await response.text();
+    let payload = null;
+    try {
+      payload = JSON.parse(rawText);
+    } catch {
+      // Some error payloads may not be JSON.
+    }
+
+    if (!response.ok) {
+      if (provider.id === 'localai') {
+        console.error(`[LocalAI] Respuesta HTTP ${response.status} después de ${Date.now() - startedAt}ms`, {
+          response: rawText.slice(0, 2000),
+        });
+      }
+      const error = new Error(`${provider.label} error: ${response.status}`);
+      error.status = response.status;
+      error.payload = payload;
+      error.rawText = rawText;
+      error.provider = provider.id;
+      throw error;
+    }
+
+    if (provider.id === 'localai') {
+      logLocalAi(`Respuesta recibida en ${Date.now() - startedAt}ms`, {
+        status: response.status,
+        usage: payload?.usage || null,
+        text: extractChoiceText(payload),
+      });
+    }
+
+    return {
+      payload,
+      text: extractChoiceText(payload),
+      usage: payload?.usage || null,
+    };
   };
+
+  return provider.id === 'localai' ? runWithLocalAiConcurrency(sendRequest) : sendRequest();
 }
 
 function buildSummaryPrompts(uniqueHeadlines, mode = 'brief', geoContext = '', variant = 'full') {
@@ -315,9 +439,16 @@ async function handleSummaryTask(body, corsHeaders, provider) {
     return json({ error: 'Headlines array required' }, 400, corsHeaders);
   }
 
-  const cacheKey = getSummaryCacheKey(headlines, mode, geoContext, variant);
+  const providerScope = body.localAiOnly === true ? `localai:${provider.model}` : 'shared';
+  const cacheKey = getSummaryCacheKey(headlines, mode, geoContext, variant, providerScope);
   const cached = await getCachedJson(cacheKey);
   if (cached && typeof cached === 'object' && cached.summary) {
+    if (provider.id === 'localai') {
+      logLocalAi('Resumen recuperado de caché; no se enviará un prompt al modelo', {
+        cacheKey,
+        model: cached.model || provider.model,
+      });
+    }
     return json(
       {
         summary: cached.summary,
@@ -332,6 +463,15 @@ async function handleSummaryTask(body, corsHeaders, provider) {
 
   const uniqueHeadlines = deduplicateHeadlines(headlines.slice(0, 8));
   const { messages } = buildSummaryPrompts(uniqueHeadlines, mode, geoContext, variant);
+  if (provider.id === 'localai') {
+    logLocalAi('Preparando resumen', {
+      receivedHeadlines: headlines.length,
+      uniqueHeadlines: uniqueHeadlines.length,
+      mode,
+      variant,
+      cacheKey,
+    });
+  }
 
   try {
     const { text, usage } = await callAiProviderChat(provider, {
@@ -707,13 +847,21 @@ export default async function handler(request) {
     return json({ error: 'Invalid request body' }, 400, corsHeaders);
   }
 
-  const provider = getAiProvider();
+  const provider = getAiProvider({
+    allowLocalAi: body.allowLocalAi === true,
+    localAiOnly: body.localAiOnly === true,
+  });
   if (!provider) {
+    if (body.localAiOnly === true) {
+      console.warn('[LocalAI] No configurado. Se requieren LOCALAI_API_URL y LOCALAI_MODEL.');
+    }
     return json(
       {
         fallback: true,
         skipped: true,
-        reason: 'HF_TOKEN or DASHSCOPE_API_KEY not configured',
+        reason: body.localAiOnly === true
+          ? 'LOCALAI_API_URL/LOCALAI_MODEL not configured'
+          : 'HF_TOKEN or DASHSCOPE_API_KEY not configured',
       },
       200,
       corsHeaders
