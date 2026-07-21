@@ -7,6 +7,7 @@ import type { NewsItem } from '@/types';
 
 interface CubaBriefRefreshRequest {
   signature: string;
+  titles: string[];
   allowBrowserFallback: boolean;
 }
 
@@ -62,7 +63,11 @@ export class CubaBriefPanel extends Panel {
     }
 
     const allowBrowserFallback = options.allowBrowserFallback ?? true;
-    this.enqueueRefresh({ signature: nextSignature, allowBrowserFallback });
+    this.enqueueRefresh({
+      signature: nextSignature,
+      titles: nextItems.slice(0, 8).map(item => item.title),
+      allowBrowserFallback,
+    });
   }
 
   private enqueueRefresh(request: CubaBriefRefreshRequest): void {
@@ -82,7 +87,7 @@ export class CubaBriefPanel extends Panel {
 
     try {
       while (request) {
-        await this.refreshBrief(request.signature, request.allowBrowserFallback);
+        await this.refreshBrief(request);
         request = this.pendingRefresh;
         this.pendingRefresh = null;
       }
@@ -108,19 +113,17 @@ export class CubaBriefPanel extends Panel {
     return true;
   }
 
-  private async refreshBrief(signature: string, allowBrowserFallback: boolean): Promise<void> {
+  private async refreshBrief(request: CubaBriefRefreshRequest): Promise<void> {
     if (this.isHidden) return;
 
-    const titles = this.cubaNews.slice(0, 8).map(item => item.title);
-    if (titles.length < 2) return;
+    if (request.titles.length < 2) return;
 
-    const loadedFromCache = await this.loadBriefFromCache(signature);
-    if (this.headlineSignature !== signature) return;
+    const loadedFromCache = await this.loadBriefFromCache(request.signature);
     const now = Date.now();
 
     if (
       loadedFromCache
-      || (this.cubaBrief && this.briefSignature === signature && now - this.lastBriefUpdate <= CubaBriefPanel.BRIEF_COOLDOWN_MS)
+      || (this.cubaBrief && this.briefSignature === request.signature && now - this.lastBriefUpdate <= CubaBriefPanel.BRIEF_COOLDOWN_MS)
     ) {
       this.setDataBadge(loadedFromCache ? 'cached' : 'live');
       this.render();
@@ -142,25 +145,38 @@ export class CubaBriefPanel extends Panel {
     ].join(' ');
 
     const result = await generateSummary(
-      titles,
+      request.titles,
       undefined,
       cubaContext,
-      { allowBrowserFallback, allowLocalAi: true }
+      { allowBrowserFallback: request.allowBrowserFallback, allowLocalAi: true }
     ).catch(() => null);
 
     const summary = result?.summary ? this.normalizeAndValidateSummary(result.summary) : null;
-    if (this.headlineSignature !== signature) return;
     if (!summary) {
+      console.warn('[CubaBrief] Summary rejected or unavailable', {
+        requestSignature: request.signature,
+        currentSignature: this.headlineSignature,
+        provider: result?.provider,
+        summary: result?.summary,
+      });
       this.setDataBadge('unavailable');
       this.render();
       return;
     }
 
+    // Show a successful result even when a newer feed batch arrived during
+    // inference. The queued latest request will replace it when it completes.
     this.cubaBrief = summary;
-    this.briefSignature = signature;
-    this.lastBriefUpdate = now;
+    this.briefSignature = request.signature;
+    this.lastBriefUpdate = Date.now();
     this.setDataBadge(result?.cached ? 'cached' : 'live');
-    void setPersistentCache(CubaBriefPanel.BRIEF_CACHE_KEY, { summary, signature });
+    void setPersistentCache(CubaBriefPanel.BRIEF_CACHE_KEY, { summary, signature: request.signature });
+    console.log('[CubaBrief] Summary displayed', {
+      requestSignature: request.signature,
+      currentSignature: this.headlineSignature,
+      provider: result?.provider,
+      cached: result?.cached,
+    });
     this.render();
   }
 
