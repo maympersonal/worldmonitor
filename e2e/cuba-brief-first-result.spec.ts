@@ -101,7 +101,7 @@ test.describe('Cuba tourism brief request arbitration', () => {
     expect(requestCount).toBe(2);
   });
 
-  test('discards an older result when the headline set changes', async ({ page }) => {
+  test('keeps the first successful result when the headline set changes', async ({ page }) => {
     let requestCount = 0;
     await page.route('**/api/ai', async (route) => {
       requestCount += 1;
@@ -115,7 +115,7 @@ test.describe('Cuba tourism brief request arbitration', () => {
         status: 200,
         contentType: 'application/json',
         body: JSON.stringify({
-          summary: isFirstRequest ? 'Resumen obsoleto.' : 'Resumen de titulares actuales.',
+          summary: isFirstRequest ? 'Primer resumen recibido.' : 'Resumen posterior.',
           provider: 'localai',
           model: 'test-localai',
           cached: false,
@@ -125,7 +125,10 @@ test.describe('Cuba tourism brief request arbitration', () => {
 
     await mountCubaBriefWithTwoUpdates(page, true);
 
-    await expect(page.locator('.cuba-brief-paragraph')).toHaveText('Resumen de titulares actuales.');
-    expect(requestCount).toBe(2);
+    await expect(page.locator('.cuba-brief-paragraph')).toHaveText('Primer resumen recibido.');
+    await page.waitForTimeout(100);
+
+    expect(requestCount).toBe(1);
+    await expect(page.locator('.cuba-brief-paragraph')).toHaveText('Primer resumen recibido.');
   });
 });

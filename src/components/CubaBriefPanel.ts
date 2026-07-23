@@ -14,10 +14,12 @@ interface CubaBriefRefreshRequest {
 
 export class CubaBriefPanel extends Panel {
   private static readonly BRIEF_CACHE_KEY = 'summary:cuba-tourism-brief';
+  private static readonly BRIEF_REFRESH_INTERVAL_MS = 12 * 60 * 60 * 1000;
   private static readonly MAX_VISIBLE_SOURCES = 8;
 
   private cubaNews: NewsItem[] = [];
   private cubaBrief: string | null = null;
+  private briefUpdatedAt = 0;
   private newsSignature = '';
   private briefSignature = '';
   private briefIsCached = false;
@@ -25,6 +27,8 @@ export class CubaBriefPanel extends Panel {
   private refreshInFlight = false;
   private pendingRefresh: CubaBriefRefreshRequest | null = null;
   private refreshEpoch = 0;
+  private briefRefreshTimeout: ReturnType<typeof setTimeout> | null = null;
+  private allowBrowserFallback = true;
   private isHidden = false;
 
   constructor() {
@@ -43,6 +47,7 @@ export class CubaBriefPanel extends Panel {
   }
 
   public setCubaNews(items: NewsItem[], options: { allowBrowserFallback?: boolean } = {}): void {
+    this.allowBrowserFallback = options.allowBrowserFallback ?? true;
     const nextItems = items
       .slice()
       .sort((a, b) => b.pubDate.getTime() - a.pubDate.getTime());
@@ -51,10 +56,23 @@ export class CubaBriefPanel extends Panel {
       .map(item => item.title.trim().toLowerCase())
       .join('|');
 
-    if (nextSignature !== this.newsSignature) {
+    if (
+      this.cubaBrief
+      && !this.refreshInFlight
+      && Date.now() - this.briefUpdatedAt >= CubaBriefPanel.BRIEF_REFRESH_INTERVAL_MS
+    ) {
+      this.clearBriefRefreshTimer();
+      this.cubaBrief = null;
+      this.briefUpdatedAt = 0;
+      this.briefSignature = '';
+      this.briefIsCached = false;
+      this.briefUnavailable = false;
+      this.refreshEpoch += 1;
+    }
+
+    if (nextSignature !== this.newsSignature && !this.cubaBrief && !this.refreshInFlight) {
       this.newsSignature = nextSignature;
       this.refreshEpoch += 1;
-      this.cubaBrief = null;
       this.briefSignature = '';
       this.briefIsCached = false;
       this.briefUnavailable = false;
@@ -62,6 +80,12 @@ export class CubaBriefPanel extends Panel {
 
     this.cubaNews = nextItems;
     this.render();
+
+    // Keep the first valid brief stable for 12 hours while the underlying news
+    // and source labels continue to refresh.
+    if (this.cubaBrief) {
+      return;
+    }
 
     if (nextItems.length < 2) {
       this.pendingRefresh = null;
@@ -74,24 +98,42 @@ export class CubaBriefPanel extends Panel {
       return;
     }
 
-    const allowBrowserFallback = options.allowBrowserFallback ?? true;
     this.enqueueRefresh({
       signature: nextSignature,
       titles: nextItems.slice(0, 8).map(item => item.title),
-      allowBrowserFallback,
+      allowBrowserFallback: this.allowBrowserFallback,
       epoch: this.refreshEpoch,
     });
+  }
+
+  private clearBriefRefreshTimer(): void {
+    if (!this.briefRefreshTimeout) return;
+    clearTimeout(this.briefRefreshTimeout);
+    this.briefRefreshTimeout = null;
+  }
+
+  private scheduleBriefRefresh(): void {
+    this.clearBriefRefreshTimer();
+    const age = Math.max(0, Date.now() - this.briefUpdatedAt);
+    const delay = Math.max(0, CubaBriefPanel.BRIEF_REFRESH_INTERVAL_MS - age);
+    this.briefRefreshTimeout = setTimeout(() => {
+      this.briefRefreshTimeout = null;
+      this.setCubaNews(this.cubaNews, { allowBrowserFallback: this.allowBrowserFallback });
+    }, delay);
   }
 
   private async loadBriefFromCache(signature: string, epoch: number): Promise<boolean> {
     const entry = await getPersistentCache<{ summary: string; signature: string }>(CubaBriefPanel.BRIEF_CACHE_KEY);
     if (!entry?.data?.summary || entry.data.signature !== signature) return false;
+    if (Date.now() - entry.updatedAt >= CubaBriefPanel.BRIEF_REFRESH_INTERVAL_MS) return false;
     if (epoch !== this.refreshEpoch) return false;
 
     this.cubaBrief = entry.data.summary.replace(/\s*\n+\s*/g, ' ').trim();
+    this.briefUpdatedAt = entry.updatedAt;
     this.briefSignature = signature;
     this.briefIsCached = true;
     this.briefUnavailable = false;
+    this.scheduleBriefRefresh();
     return true;
   }
 
@@ -179,13 +221,20 @@ export class CubaBriefPanel extends Panel {
 
     const summary = result.summary.replace(/\s*\n+\s*/g, ' ').trim();
     this.cubaBrief = summary;
+    this.briefUpdatedAt = Date.now();
     this.briefSignature = request.signature;
     this.briefIsCached = result.cached;
     this.briefUnavailable = false;
     this.setDataBadge(result.cached ? 'cached' : 'live');
     void setPersistentCache(CubaBriefPanel.BRIEF_CACHE_KEY, { summary, signature: request.signature });
+    this.scheduleBriefRefresh();
     this.render();
     return true;
+  }
+
+  public override destroy(): void {
+    this.clearBriefRefreshTimer();
+    super.destroy();
   }
 
   private getVisibleSources(): string[] {
